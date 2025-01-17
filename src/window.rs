@@ -1,10 +1,9 @@
-use glfw::{Action, Context, Key, WindowEvent, fail_on_errors};
-use std::sync::mpsc::Receiver;
+use glfw::fail_on_errors;
 
 pub struct Window {
 	pub(crate) glfw: glfw::Glfw,
 	pub(crate) window_handle: glfw::PWindow,
-	pub(crate) events: glfw::GlfwReceiver<(f64, WindowEvent)>
+	pub(crate) events: glfw::GlfwReceiver<(f64, glfw::WindowEvent)>,
 }
 
 impl Window {
@@ -21,11 +20,11 @@ impl Window {
 			.expect("Failed to create GLFW window");
 		window.set_framebuffer_size_polling(true);
 		window.set_key_polling(true);
-		
+
 		Self {
 			glfw,
 			window_handle: window,
-			events
+			events,
 		}
 	}
 }
