@@ -1,0 +1,11 @@
+# Generated from existing code files
+# Thanks neomoth 🙄
+
+# Use tabs for indentation
+hard_tabs = true
+
+# Set tab width to 4 spaces
+tab_spaces = 4
+
+# Use LF for line endings
+newline_style = "Unix"
