@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::sync::Mutex;
 use std::rc::Rc;
 use crate::buddy::context::{BuddyContext, FFContext};
@@ -74,13 +75,13 @@ impl Buddy for FunfriendBuddy {
 	}
 }
 
-pub fn make_buddy(name: &str) -> Rc<Mutex<dyn Buddy>> {
+pub fn make_buddy(name: &str) -> Rc<RefCell<dyn Buddy>> {
 	match name {
-		"funfriend" => Rc::new(Mutex::new(FunfriendBuddy)),
-		_ => Rc::new(Mutex::new(FunfriendBuddy)),
+		"funfriend" => Rc::new(RefCell::new(FunfriendBuddy)),
+		_ => Rc::new(RefCell::new(FunfriendBuddy)),
 	}
 }
 
-pub fn make_buddy_context(buddy: Rc<Mutex<dyn Buddy>>, window: Rc<Mutex<super::super::super::Window>>) -> Rc<Mutex<dyn FFContext>> {
-	Rc::new(Mutex::new(BuddyContext::new(buddy, window)))
+pub fn make_buddy_context(buddy: Rc<RefCell<dyn Buddy>>, window: Rc<RefCell<super::super::super::Window>>) -> Rc<RefCell<dyn FFContext>> {
+	Rc::new(RefCell::new(BuddyContext::new(buddy, window)))
 }

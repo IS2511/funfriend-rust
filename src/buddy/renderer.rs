@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use super::{super::config_manager, buddies::funfriend};
 use crate::texture::TextureBasket;
 use gl::types::*;
@@ -17,18 +18,20 @@ pub struct BuddyRenderer {
 }
 
 impl BuddyRenderer {
-	pub fn new(buddy: Rc<Mutex<dyn funfriend::Buddy>>, window: Rc<Mutex<super::super::Window>>) -> Self {
-		window.lock().unwrap().window_handle.make_current();
-		gl::load_with(|s| window.lock().unwrap().glfw.get_proc_address_raw(s) as *const _);
+	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>, window: Rc<RefCell<super::super::Window>>) -> Self {
+		let mut window = window.borrow_mut();
+		let mut buddy = buddy.borrow_mut();
+		window.window_handle.make_current();
+		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 		let (buddy_shader, bg_shader) = Self::init_shaders();
 		let (vertex_array, vertex_buffer) = Self::init_buffers();
-		let textures = buddy.lock().unwrap().textures();
-		let bg_texture = if let Some(texture) = buddy.lock().unwrap().bg_texture(){
+		let textures = buddy.textures();
+		let bg_texture = if let Some(texture) = buddy.bg_texture(){
 			texture.tex
 		} else {
 			0
 		};
-
+		
 		Self {
 			buddy_shader,
 			bg_shader,

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::sync::Mutex;
 use std::rc::Rc;
 use glfw::{Action, Context, Key, WindowEvent};
@@ -27,9 +28,9 @@ pub const NOP_VERT: &[u8] = include_bytes!("glsl/nop.vert");
 
 pub struct Funfriend {
 	version: &'static str,
-	contexts: Vec<Rc<Mutex<dyn FFContext>>>,
-	buddy: Option<Rc<Mutex<dyn Buddy>>>,
-	window: Option<Rc<Mutex<Window>>>,
+	contexts: Vec<Rc<RefCell<dyn FFContext>>>,
+	buddy: Option<Rc<RefCell<dyn Buddy>>>,
+	window: Option<Rc<RefCell<Window>>>,
 }
 
 impl Funfriend {
@@ -42,15 +43,15 @@ impl Funfriend {
 		}
 	}
 
-	fn set_buddy(&mut self, buddy: Rc<Mutex<dyn Buddy>>) {
+	fn set_buddy(&mut self, buddy: Rc<RefCell<dyn Buddy>>) {
 		self.buddy = Some(buddy);
 	}
 	
-	fn add_context(&mut self, context: Rc<Mutex<dyn FFContext>>) {
+	fn add_context(&mut self, context: Rc<RefCell<dyn FFContext>>) {
 		self.contexts.push(context);
 	}
 
-	fn contexts(&self) -> &Vec<Rc<Mutex<dyn FFContext>>> {
+	fn contexts(&self) -> &Vec<Rc<RefCell<dyn FFContext>>> {
 		&self.contexts
 	}
 
@@ -58,17 +59,17 @@ impl Funfriend {
 		logger::init();
 		config_manager::read();
 
-		let window = Rc::new(Mutex::new(Window::new(512, 512, "??_FUNFRIEND_??")));
+		let window = Rc::new(RefCell::new(Window::new(512, 512, "??_FUNFRIEND_??")));
 		self.window = Some(window.clone());
 		if let Some(window) = &mut self.window.clone() {
 			let buddy = make_buddy(config_manager::CONFIG.lock().unwrap().buddy_settings.buddy_type.as_str().clone());
-			self.add_context(make_buddy_context(buddy.clone(),if self.window.is_some(){window.clone()} else {panic!("window doesn't exist!")}));
+			self.add_context(make_buddy_context(buddy.clone(), if self.window.is_some(){window.clone()} else {panic!("window doesn't exist!")}));
 			self.set_buddy(buddy);
 			
-			let mut window = window.lock().unwrap();
+			let mut window = window.borrow_mut();
 			
 			let mut last_t = window.glfw.get_time();
-
+			
 			while !window.window_handle.should_close() {
 				tracing::info!("new frame");
 				window.glfw.poll_events();
@@ -76,15 +77,17 @@ impl Funfriend {
 				-last_t;
 				last_t = window.glfw.get_time();
 
-				self.contexts.retain(|mut context| {
-					if context.lock().unwrap().should_close() {
-						context.lock().unwrap().clean_up();
-						false
+				tracing::info!("about to iterate over contexts");
+				for tuple in self.contexts.iter().enumerate() {
+					let mut context = tuple.1.borrow_mut();
+					if context.should_close() {
+						tracing::info!("trying to close?");
+						context.clean_up();
 					} else {
-						let _ = context.lock().unwrap().update(dt);
-						true
+						tracing::info!("running update");
+						let _ = context.update(dt);
 					}
-				});
+				};
 				let flushed_events = glfw::flush_messages(&window.events);
 				let mut should_close = false;
 				for (_, event) in flushed_events {
