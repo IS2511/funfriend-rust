@@ -1,5 +1,6 @@
+use std::ops::Deref;
 use glfw::Context as _;
-
+use rand::prelude::SliceRandom;
 use super::super::{
 	buddy::{
 		buddies::funfriend::{self, DialogType},
@@ -33,11 +34,11 @@ pub struct BuddyContext<'a> {
 	easing_dur: f64,
 	easing_t: f64,
 	wander_timer: f64,
-	window: Window,
+	window: &'_ mut Window,
 }
 
 impl<'a> BuddyContext<'a> {
-	pub fn new(buddy: &'a dyn funfriend::Buddy, mut window: Window) -> Self {
+	pub fn new(buddy: &'a dyn funfriend::Buddy, window: &'a mut Window) -> Self {
 		let renderer = BuddyRenderer::new(buddy);
 		let window_size = Self::get_window_size(&renderer);
 
@@ -45,7 +46,9 @@ impl<'a> BuddyContext<'a> {
 			.window_handle
 			.set_size(window_size.x as i32, window_size.y as i32);
 		window.window_handle.make_current();
-		let chatter_array = buddy.dialog(DialogType::Chatter).sample();
+		let binding = buddy.dialog(DialogType::Chatter);
+		let sample = binding.choose(&mut rand::thread_rng());
+		let chatter_array = Some(vec![sample.unwrap().deref().to_owned()]);
 
 		Self {
 			buddy,
@@ -74,7 +77,7 @@ impl<'a> BuddyContext<'a> {
 	// }
 	fn get_window_size(renderer: &BuddyRenderer) -> Vec2 {
 		let size = renderer.funfriend_size();
-		Vec2::new2((size * 1.3).floor() as i32)
+		Vec2::new_i((size.0 as f64 * 1.3).floor() as i32, (size.1 as f64 * 1.3).floor() as i32)
 	}
 
 	fn random_pos(&self) -> Vec2 {

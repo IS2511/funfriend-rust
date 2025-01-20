@@ -52,7 +52,7 @@ pub fn load_texture(
 ) -> Result<SizedTexture, String> {
 	let img = image::open(filepath).map_err(|e| format!("Failed to open image: {}", e));
 	let img = img?.to_rgb8();
-	let (width, height) = img?.dimensions();
+	let (width, height) = img.dimensions();
 	let params = params.unwrap_or(DEFAULT_TEXTURE_PARAMS);
 
 	let mut texture: GLuint = 0;

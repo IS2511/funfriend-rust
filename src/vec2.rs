@@ -1,8 +1,9 @@
 use rand::Rng as _;
 use std::f32::consts::TAU;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Vec2 {
 	pub x: f64,
 	pub y: f64,
@@ -230,5 +231,11 @@ impl Div<f64> for Vec2 {
 	type Output = Vec2;
 	fn div(self, other: f64) -> Self::Output {
 		Self::new(self.x / other, self.y / other)
+	}
+}
+
+impl PartialEq for Vec2 {
+	fn eq(&self, other: &Self) -> bool {
+		if self.eq(*other) { true } else { false }
 	}
 }

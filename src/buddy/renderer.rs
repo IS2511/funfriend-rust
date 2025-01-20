@@ -1,4 +1,4 @@
-use super::{super::config, buddies::funfriend};
+use super::{super::config_manager, buddies::funfriend};
 use crate::texture::TextureBasket;
 use gl::types::*;
 use std::ffi::CString;
@@ -30,20 +30,12 @@ impl BuddyRenderer {
 	}
 
 	pub fn funfriend_size(&self) -> (i32, i32) {
-		let size = {
-			let config = config::get();
-			if let Some(window_section) = config.get("window") {
-				if let Some(config::ConfigValueEnum::Int(s)) = window_section.get("funfriend_size")
-				{
-					*s
-				} else {
-					75
-				}
-			} else {
-				75
-			}
-		};
-		(size, size)
+		let config = config_manager::CONFIG.lock().unwrap();
+		if config.window_settings.size != super::super::vec2::Vec2::zero() {
+			(config.window_settings.size.x as i32, config.window_settings.size.y as i32)
+		} else {
+			(75, 75)
+		}
 	}
 
 	fn init_buffers() -> (u32, u32) {

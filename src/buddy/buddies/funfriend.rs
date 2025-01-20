@@ -1,3 +1,4 @@
+use crate::buddy::context::BuddyContext;
 use crate::texture::{load_texture, SizedTexture, TextureBasket};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -16,6 +17,7 @@ pub trait Buddy {
 	fn font(&self) -> &str;
 }
 
+#[derive(Clone)]
 pub struct FunfriendBuddy;
 
 impl Buddy for FunfriendBuddy {
@@ -70,9 +72,13 @@ impl Buddy for FunfriendBuddy {
 	}
 }
 
-pub fn make_buddy(name: &str) -> Box<dyn Buddy> {
+pub fn make_buddy(name: &str) -> &dyn Buddy {
 	match name {
-		"funfriend" => Box::new(FunfriendBuddy),
-		_ => Box::new(FunfriendBuddy),
+		"funfriend" => &FunfriendBuddy,
+		_ => &FunfriendBuddy,
 	}
+}
+
+pub fn make_buddy_context(buddy: &dyn Buddy, window: &mut super::super::super::window::Window) -> BuddyContext {
+	BuddyContext::new(buddy, window)
 }
