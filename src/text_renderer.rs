@@ -18,7 +18,9 @@ pub struct TextRenderer {
 
 impl TextRenderer {
 	pub fn new(text: String, font: String, sheet: BMSheet, width: i32, height: i32) -> Self {
-		let shader_program = glfn::shader("nop.frag", "nop.vert");
+		let nop_frag = std::str::from_utf8(super::NOP_FRAG).unwrap();
+		let nop_vert = std::str::from_utf8(super::NOP_VERT).unwrap();
+		let shader_program = glfn::shader(nop_frag, nop_vert);
 		let (vertex_array, vertex_buffer) = Self::init_buffers(&text, &sheet, width, height);
 		let font_texture = Self::init_textures(&font);
 		Self {

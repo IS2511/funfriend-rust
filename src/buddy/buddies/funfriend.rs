@@ -1,4 +1,6 @@
-use crate::buddy::context::BuddyContext;
+use std::sync::Mutex;
+use std::rc::Rc;
+use crate::buddy::context::{BuddyContext, FFContext};
 use crate::texture::{load_texture, SizedTexture, TextureBasket};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -72,13 +74,13 @@ impl Buddy for FunfriendBuddy {
 	}
 }
 
-pub fn make_buddy(name: &str) -> &dyn Buddy {
+pub fn make_buddy(name: &str) -> Rc<Mutex<dyn Buddy>> {
 	match name {
-		"funfriend" => &FunfriendBuddy,
-		_ => &FunfriendBuddy,
+		"funfriend" => Rc::new(Mutex::new(FunfriendBuddy)),
+		_ => Rc::new(Mutex::new(FunfriendBuddy)),
 	}
 }
 
-pub fn make_buddy_context(buddy: &dyn Buddy, window: &mut super::super::super::window::Window) -> BuddyContext {
-	BuddyContext::new(buddy, window)
+pub fn make_buddy_context(buddy: Rc<Mutex<dyn Buddy>>, window: Rc<Mutex<super::super::super::Window>>) -> Rc<Mutex<dyn FFContext>> {
+	Rc::new(Mutex::new(BuddyContext::new(buddy, window)))
 }

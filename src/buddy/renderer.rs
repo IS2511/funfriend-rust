@@ -2,6 +2,10 @@ use super::{super::config_manager, buddies::funfriend};
 use crate::texture::TextureBasket;
 use gl::types::*;
 use std::ffi::CString;
+use std::io::Read;
+use std::rc::Rc;
+use std::sync::{Mutex};
+use glfw::Context;
 
 pub struct BuddyRenderer {
 	pub buddy_shader: GLuint,
@@ -13,11 +17,17 @@ pub struct BuddyRenderer {
 }
 
 impl BuddyRenderer {
-	pub fn new(buddy: &dyn funfriend::Buddy) -> Self {
+	pub fn new(buddy: Rc<Mutex<dyn funfriend::Buddy>>, window: Rc<Mutex<super::super::Window>>) -> Self {
+		window.lock().unwrap().window_handle.make_current();
+		gl::load_with(|s| window.lock().unwrap().glfw.get_proc_address_raw(s) as *const _);
 		let (buddy_shader, bg_shader) = Self::init_shaders();
 		let (vertex_array, vertex_buffer) = Self::init_buffers();
-		let textures = buddy.textures();
-		let bg_texture = buddy.bg_texture().unwrap().tex;
+		let textures = buddy.lock().unwrap().textures();
+		let bg_texture = if let Some(texture) = buddy.lock().unwrap().bg_texture(){
+			texture.tex
+		} else {
+			0
+		};
 
 		Self {
 			buddy_shader,
@@ -98,24 +108,27 @@ impl BuddyRenderer {
 	}
 
 	fn init_shaders() -> (GLuint, GLuint) {
-		let buddy_shader = Self::compile_shader("funfriend.frag", "nop.vert");
-		let bg_shader = Self::compile_shader("nop.vert", "nop.vert");
+		let ff_frag = std::str::from_utf8(super::super::FUNFRIEND_FRAG).unwrap();
+		let nop_vert = std::str::from_utf8(super::super::NOP_VERT).unwrap();
+		let nop_frag = std::str::from_utf8(super::super::NOP_FRAG).unwrap();
+		let buddy_shader = Self::compile_shader(nop_vert, ff_frag);
+		let bg_shader = Self::compile_shader(nop_vert, nop_frag);
 
 		(buddy_shader, bg_shader)
 	}
 
-	fn compile_shader(vertex_path: &str, fragment_path: &str) -> GLuint {
-		let vertex_shader_code =
-			std::fs::read_to_string(vertex_path).expect("Failed to read vertex shader");
-		let fragment_shader_code =
-			std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader");
+	fn compile_shader(vertex: &str, fragment: &str) -> GLuint {
+		// let vertex_shader_code =
+		// 	std::fs::read_to_string(vertex_path).expect("Failed to read vertex shader");
+		// let fragment_shader_code =
+		// 	std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader");
 
 		unsafe {
 			let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
 			let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
 
-			let c_str_vertex = CString::new(vertex_shader_code.as_bytes()).unwrap();
-			let c_str_fragment = CString::new(fragment_shader_code.as_bytes()).unwrap();
+			let c_str_vertex = CString::new(vertex.as_bytes()).unwrap();
+			let c_str_fragment = CString::new(fragment.as_bytes()).unwrap();
 
 			gl::ShaderSource(vertex_shader, 1, &c_str_vertex.as_ptr(), std::ptr::null());
 			gl::CompileShader(vertex_shader);

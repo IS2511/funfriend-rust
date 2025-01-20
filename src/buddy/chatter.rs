@@ -1,5 +1,5 @@
 use glfw::Context as _;
-
+use crate::buddy::context::FFContext;
 use super::super::{
 	font_manager::FontMan, text_renderer::TextRenderer, vec2::Vec2, window::Window,
 };
@@ -88,7 +88,14 @@ impl ChatterContext {
 		self.renderer.render(dt);
 	}
 
-	pub fn update(&mut self, dt: f64) {
+	pub fn bump(&mut self) {
+		self.parent_relative_pos.y -= self.window_size.y + 10.0;
+		self.update_pos();
+	}
+}
+
+impl FFContext for ChatterContext{
+	fn update(&mut self, dt: f64) {
 		self.timer -= dt;
 		if self.timer <= 0.0 {
 			self.window.window_handle.set_should_close(true);
@@ -96,13 +103,11 @@ impl ChatterContext {
 		self.update_pos();
 		self.render(dt);
 	}
-
-	pub fn bump(&mut self) {
-		self.parent_relative_pos.y -= self.window_size.y + 10.0;
-		self.update_pos();
+	fn clean_up(&mut self) {
+		self.renderer.clean_up();
 	}
 
-	pub fn clean_up(&mut self) {
-		self.renderer.clean_up();
+	fn should_close(&self) -> bool {
+		self.window.window_handle.should_close()
 	}
 }

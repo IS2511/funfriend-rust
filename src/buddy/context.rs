@@ -1,4 +1,6 @@
 use std::ops::Deref;
+use std::rc::Rc;
+use std::sync::Mutex;
 use glfw::Context as _;
 use rand::prelude::SliceRandom;
 use super::super::{
@@ -17,41 +19,47 @@ const STAY_STILL_AFTER_HELD: f64 = 1.0;
 const WANDER_TIMER: f64 = 4.0;
 const FOLLOW_DIST: i32 = 120;
 
-pub struct BuddyContext<'a> {
-	buddy: &'a dyn funfriend::Buddy,
-	renderer: BuddyRenderer,
-	chatter_timer: f64,
-	chatter_index: i32,
-	chatter_array: Option<Vec<Vec<String>>>,
-	held: bool,
-	held_at: Vec2,
-	started_holding_at: Vec2,
-	held_timer: f64,
-	waiting_for_stable_pos: bool,
-	static_pos: Vec2,
-	easing_from: Vec2,
-	easing_to: Vec2,
-	easing_dur: f64,
-	easing_t: f64,
-	wander_timer: f64,
-	window: &'_ mut Window,
+pub trait FFContext {
+	fn should_close(&self) -> bool;
+	fn clean_up(&mut self);
+	fn update(&mut self, dt: f64);
 }
 
-impl<'a> BuddyContext<'a> {
-	pub fn new(buddy: &'a dyn funfriend::Buddy, window: &'a mut Window) -> Self {
-		let renderer = BuddyRenderer::new(buddy);
+pub struct BuddyContext {
+	pub buddy: Rc<Mutex<dyn funfriend::Buddy>>,
+	pub renderer: BuddyRenderer,
+	pub chatter_timer: f64,
+	pub chatter_index: i32,
+	pub chatter_array: Option<Vec<Vec<String>>>,
+	pub held: bool,
+	pub held_at: Vec2,
+	pub started_holding_at: Vec2,
+	pub held_timer: f64,
+	pub waiting_for_stable_pos: bool,
+	pub static_pos: Vec2,
+	pub easing_from: Vec2,
+	pub easing_to: Vec2,
+	pub easing_dur: f64,
+	pub easing_t: f64,
+	pub wander_timer: f64,
+	pub window: Rc<Mutex<Window>>,
+}
+
+impl BuddyContext {
+	pub fn new(buddy: Rc<Mutex<dyn funfriend::Buddy>>, window: Rc<Mutex<Window>>) -> Self {
+		let renderer = BuddyRenderer::new(buddy.clone(), window.clone());
 		let window_size = Self::get_window_size(&renderer);
 
-		window
+		window.lock().unwrap()
 			.window_handle
 			.set_size(window_size.x as i32, window_size.y as i32);
-		window.window_handle.make_current();
-		let binding = buddy.dialog(DialogType::Chatter);
+		window.lock().unwrap().window_handle.make_current();
+		let binding = buddy.lock().unwrap().dialog(DialogType::Chatter);
 		let sample = binding.choose(&mut rand::thread_rng());
 		let chatter_array = Some(vec![sample.unwrap().deref().to_owned()]);
 
 		Self {
-			buddy,
+			buddy: buddy.clone(),
 			renderer,
 			chatter_timer: 1.0,
 			chatter_index: 0,
@@ -102,7 +110,7 @@ impl<'a> BuddyContext<'a> {
 	}
 
 	pub fn render(&mut self, dt: f64) {
-		self.window.window_handle.make_current();
+		self.window.lock().unwrap().window_handle.make_current();
 		let window_size = Self::get_window_size(&self.renderer);
 		self.renderer
 			.render(dt, window_size.x as i32, window_size.y as i32);
@@ -112,8 +120,8 @@ impl<'a> BuddyContext<'a> {
 		self.easing_t = 0.0;
 		self.easing_dur = dur;
 		self.easing_from = Vec2::new(
-			self.window.window_handle.get_pos().0 as f64,
-			self.window.window_handle.get_pos().1 as f64,
+			self.window.lock().unwrap().window_handle.get_pos().0 as f64,
+			self.window.lock().unwrap().window_handle.get_pos().1 as f64,
 		);
 		self.easing_to = pos;
 
@@ -130,7 +138,7 @@ impl<'a> BuddyContext<'a> {
 			let a = ease::in_out_sine(self.easing_t / self.easing_dur);
 			let new_position = self.easing_from * (1.0 - a) + self.easing_to * a;
 			self.window
-				.window_handle
+				.lock().unwrap().window_handle
 				.set_pos(new_position.x as i32, new_position.y as i32);
 
 			self.wander_timer = WANDER_TIMER;
@@ -144,20 +152,20 @@ impl<'a> BuddyContext<'a> {
 				}
 				Behavior::Follow => {
 					if !self.moving() {
-						let cursor_pos = self.window.window_handle.get_cursor_pos();
-						let mut x_target = self.window.window_handle.get_pos().0 as f64;
-						let mut y_target = self.window.window_handle.get_pos().1 as f64;
+						let cursor_pos = self.window.lock().unwrap().window_handle.get_cursor_pos();
+						let mut x_target = self.window.lock().unwrap().window_handle.get_pos().0 as f64;
+						let mut y_target = self.window.lock().unwrap().window_handle.get_pos().1 as f64;
 
 						let x_dist = cursor_pos.0;
 						let y_dist = cursor_pos.1;
 
 						if x_dist.abs() > FOLLOW_DIST as f64 {
-							x_target = self.window.window_handle.get_pos().0 as f64 + x_dist
+							x_target = self.window.lock().unwrap().window_handle.get_pos().0 as f64 + x_dist
 								- FOLLOW_DIST as f64 * x_dist.signum();
 						}
 
 						if y_dist.abs() > FOLLOW_DIST as f64 {
-							y_target = self.window.window_handle.get_pos().1 as f64 + y_dist
+							y_target = self.window.lock().unwrap().window_handle.get_pos().1 as f64 + y_dist
 								- FOLLOW_DIST as f64 * y_dist.signum();
 						}
 
@@ -170,12 +178,12 @@ impl<'a> BuddyContext<'a> {
 	}
 
 	pub fn update_pos(&mut self, dt: f64) {
-		let cursor_pos = self.window.window_handle.get_cursor_pos();
+		let cursor_pos = self.window.lock().unwrap().window_handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 		if self.held {
 			self.static_pos = cursor_pos - self.held_at + cursor_pos;
 			self.window
-				.window_handle
+				.lock().unwrap().window_handle
 				.set_pos(self.static_pos.x as i32, self.static_pos.y as i32);
 		} else {
 			self.held_timer -= dt;
@@ -187,12 +195,12 @@ impl<'a> BuddyContext<'a> {
 
 					let stable_pos_dist = self.static_pos.dist(self.started_holding_at);
 					tracing::info!("travelled {:?}", stable_pos_dist);
-
+					let buddy = self.buddy.lock().unwrap();
 					if !self.speaking() {
 						if stable_pos_dist > 50.0 {
-							self.say(self.buddy.dialog(DialogType::Moved));
+							self.say(buddy.dialog(DialogType::Moved));
 						} else {
-							self.say(self.buddy.dialog(DialogType::Touched));
+							self.say(buddy.dialog(DialogType::Touched));
 						}
 					}
 				}
@@ -202,7 +210,7 @@ impl<'a> BuddyContext<'a> {
 		}
 	}
 
-	pub fn say(&mut self, text_groups: Vec<Vec<String>>) {
+	pub fn say(&self, text_groups: Vec<Vec<String>>) {
 		let flattened_texts: Vec<String> = text_groups.into_iter().flatten().collect();
 		let window_size = Self::get_window_size(&self.renderer);
 		let window_size = Vec2::new(window_size.x, window_size.y);
@@ -210,20 +218,20 @@ impl<'a> BuddyContext<'a> {
 		let mut last_context: Option<Box<ChatterContext>> = None;
 
 		let text_position = Vec2::new(
-			self.window.window_handle.get_pos().0 as f64 + window_size.x / 2.0,
-			self.window.window_handle.get_pos().1 as f64 - 20.0,
+			self.window.lock().unwrap().window_handle.get_pos().0 as f64 + window_size.x / 2.0,
+			self.window.lock().unwrap().window_handle.get_pos().1 as f64 - 20.0,
 		);
 		for text in flattened_texts {
 			let chatter_context = ChatterContext::new(
 				&text,
-				&self.buddy.font(),
+				&self.buddy.lock().unwrap().font(),
 				text_position,
 				ChatterContext::DEFAULT_DURATION,
 				last_context.take(),
 			);
 
 			last_context = Some(Box::new(chatter_context));
-			self.buddy.talk_sound();
+			self.buddy.lock().unwrap().talk_sound();
 		}
 	}
 
@@ -241,7 +249,29 @@ impl<'a> BuddyContext<'a> {
 		}
 	}
 
-	pub fn update(&mut self, dt: f64) {
+	pub fn behavior(&self) -> Behavior {
+		if self.speaking() {
+			Behavior::Follow
+		} else {
+			Behavior::Wander
+		}
+	}
+
+	pub fn moving(&self) -> bool {
+		self.easing_dur != 0.0 && self.easing_t <= self.easing_dur
+	}
+}
+
+impl FFContext for BuddyContext{
+	fn should_close(&self) -> bool {
+		self.window.lock().unwrap().window_handle.should_close()
+	}
+
+	fn clean_up(&mut self) {
+		self.renderer.clean_up();
+	}
+
+	fn update(&mut self, dt: f64) {
 		self.chatter_timer -= dt;
 		if self.chatter_timer <= 0.0 {
 			self.chatter_timer += CHATTER_TIMER;
@@ -264,19 +294,7 @@ impl<'a> BuddyContext<'a> {
 		self.update_pos(dt);
 		self.render(dt);
 
-		self.window.window_handle.swap_buffers();
-	}
-
-	pub fn behavior(&self) -> Behavior {
-		if self.speaking() {
-			Behavior::Follow
-		} else {
-			Behavior::Wander
-		}
-	}
-
-	pub fn moving(&self) -> bool {
-		self.easing_dur != 0.0 && self.easing_t <= self.easing_dur
+		self.window.lock().unwrap().window_handle.swap_buffers();
 	}
 }
 
