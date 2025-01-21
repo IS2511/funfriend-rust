@@ -5,7 +5,7 @@ use std::ops::Deref as _;
 use super::APP_NAME;
 const CONFIG_FILENAME: &str = "cfg.json";
 
-// yes i know this is global, fuck you i do not care. it's Arc Mutex and from what I can find, it should be safe to share globally.
+// tried to make this not arc mutex, it does not like when i do that. fix later, or dont i dont care so long as it functions and does its job.
 lazy_static::lazy_static! {
 	pub static ref CONFIG: std::sync::Arc<std::sync::Mutex<Config>> = Default::default();
 }
@@ -52,7 +52,8 @@ pub struct BuddySettings {
 pub fn read() {
 	let mut config = CONFIG.lock().unwrap();
 	*config = if get_config_dir().join(CONFIG_FILENAME).exists() {
-		let mut file = std::fs::File::open(get_config_dir().join(CONFIG_FILENAME)).expect("Failed to open config file");
+		let mut file = std::fs::File::open(get_config_dir().join(CONFIG_FILENAME))
+			.expect("Failed to open config file");
 		let mut contents = String::new();
 		file.read_to_string(&mut contents)
 			.expect("Failed to read config file");

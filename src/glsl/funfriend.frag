@@ -51,5 +51,8 @@ void main() {
   // ooo you're a vflipper... you like flipping your y coordinate.... ooooo
   uv.y = 1.0 - uv.y;
 
-  FragColor = texture(texture1, uv);
+  vec4 texColor = texture(texture1, uv);
+  
+//  FragColor = vec4(texColor.a, texColor.a, texColor.a, 1.0);
+  FragColor = texColor;
 }

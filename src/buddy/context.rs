@@ -289,7 +289,6 @@ impl FFContext for BuddyContext {
 
 	fn clean_up(&mut self) {
 		self.renderer.clean_up();
-		
 	}
 
 	fn update(&mut self, dt: f64) {

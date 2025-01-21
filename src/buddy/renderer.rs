@@ -1,5 +1,5 @@
 use super::{super::config_manager, buddies::funfriend};
-use crate::texture::TextureBasket;
+use crate::texture::{SizedTexture, TextureBasket};
 use gl::types::*;
 use glfw::Context;
 use std::cell::RefCell;
@@ -14,7 +14,7 @@ pub struct BuddyRenderer {
 	pub vertex_array: GLuint,
 	pub vertex_buffer: GLuint,
 	pub textures: TextureBasket,
-	pub bg_texture: Option<GLuint>,
+	pub bg_texture: Option<SizedTexture>,
 }
 
 impl BuddyRenderer {
@@ -28,11 +28,7 @@ impl BuddyRenderer {
 		let (buddy_shader, bg_shader) = Self::init_shaders();
 		let (vertex_array, vertex_buffer) = Self::init_buffers();
 		let textures = buddy.textures();
-		let bg_texture = if let Some(texture) = buddy.bg_texture() {
-			texture.tex
-		} else {
-			0
-		};
+		let bg_texture = buddy.bg_texture();
 
 		Self {
 			buddy_shader,
@@ -40,7 +36,7 @@ impl BuddyRenderer {
 			vertex_array,
 			vertex_buffer,
 			textures,
-			bg_texture: Some(bg_texture),
+			bg_texture,
 		}
 	}
 
@@ -130,6 +126,7 @@ impl BuddyRenderer {
 		unsafe {
 			gl::ClearColor(0.0, 0.0, 0.0, 0.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);
+			gl::Viewport(0,0,window_width,window_height);
 		}
 
 		self.textures.update(dt);
@@ -141,10 +138,10 @@ impl BuddyRenderer {
 			gl::Enable(gl::BLEND);
 			gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
-			if let Some(bg_texture) = self.bg_texture {
-				gl::BindTexture(gl::TEXTURE_2D, bg_texture);
+			if let Some(bg_texture) = &self.bg_texture {
+				gl::BindTexture(gl::TEXTURE_2D, bg_texture.tex);
 				gl::UseProgram(self.bg_shader);
-
+				
 				gl::Uniform1i(
 					gl::GetUniformLocation(
 						self.bg_shader,
@@ -197,6 +194,7 @@ impl BuddyRenderer {
 		unsafe {
 			gl::DeleteVertexArrays(1, &self.vertex_array);
 			gl::DeleteBuffers(1, &self.vertex_buffer);
+			gl::DeleteProgram(self.bg_shader);
 		}
 	}
 }

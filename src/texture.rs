@@ -17,8 +17,8 @@ pub struct TextureBasket {
 }
 
 const DEFAULT_TEXTURE_PARAMS: [(GLuint, GLuint); 4] = [
-	(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_BORDER),
-	(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_BORDER),
+	(gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE),
+	(gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE),
 	(gl::TEXTURE_MIN_FILTER, gl::NEAREST),
 	(gl::TEXTURE_MAG_FILTER, gl::NEAREST),
 ];
@@ -51,7 +51,7 @@ pub fn load_texture(
 	params: Option<[(GLuint, GLuint); 4]>,
 ) -> Result<SizedTexture, String> {
 	let img = image::open(filepath).map_err(|e| format!("Failed to open image: {}", e));
-	let img = img?.to_rgb8();
+	let img = img?.to_rgba8();
 	let (width, height) = img.dimensions();
 	let params = params.unwrap_or(DEFAULT_TEXTURE_PARAMS);
 

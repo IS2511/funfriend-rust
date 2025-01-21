@@ -33,7 +33,7 @@ impl ChatterContext {
 			text_height as f64 + Self::PADDING * 2.0,
 		);
 
-		let window = Window::new(
+		let mut window = Window::new(
 			window_size.x as u32,
 			window_size.y as u32,
 			"??_FUNFRIEND_?? > CHATTER",
@@ -54,6 +54,14 @@ impl ChatterContext {
 			let parent_window_pos = Vec2::new_t(p.window.window_handle.get_pos());
 			let parent_window_size = Vec2::new(parent_window_pos.x, parent_window_pos.y);
 			parent_relative_pos = position - (parent_window_size / 2.0);
+		}
+
+		window.window_handle.make_current();
+		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
+		
+		unsafe {
+			gl::Enable(gl::BLEND);
+			gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 		}
 
 		Self {
