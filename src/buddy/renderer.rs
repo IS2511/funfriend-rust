@@ -1,12 +1,12 @@
-use std::cell::RefCell;
 use super::{super::config_manager, buddies::funfriend};
 use crate::texture::TextureBasket;
 use gl::types::*;
+use glfw::Context;
+use std::cell::RefCell;
 use std::ffi::CString;
 use std::io::Read;
 use std::rc::Rc;
-use std::sync::{Mutex};
-use glfw::Context;
+use std::sync::Mutex;
 
 pub struct BuddyRenderer {
 	pub buddy_shader: GLuint,
@@ -18,19 +18,22 @@ pub struct BuddyRenderer {
 }
 
 impl BuddyRenderer {
-	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>, window: &mut super::super::Window) -> Self {
+	pub fn new(
+		buddy: Rc<RefCell<dyn funfriend::Buddy>>,
+		window: &mut super::super::Window,
+	) -> Self {
 		let mut buddy = buddy.borrow_mut();
 		window.window_handle.make_current();
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 		let (buddy_shader, bg_shader) = Self::init_shaders();
 		let (vertex_array, vertex_buffer) = Self::init_buffers();
 		let textures = buddy.textures();
-		let bg_texture = if let Some(texture) = buddy.bg_texture(){
+		let bg_texture = if let Some(texture) = buddy.bg_texture() {
 			texture.tex
 		} else {
 			0
 		};
-		
+
 		Self {
 			buddy_shader,
 			bg_shader,
@@ -44,7 +47,10 @@ impl BuddyRenderer {
 	pub fn funfriend_size(&self) -> (i32, i32) {
 		let config = config_manager::CONFIG.lock().unwrap();
 		if config.window_settings.size != super::super::vec2::Vec2::zero() {
-			(config.window_settings.size.x as i32, config.window_settings.size.y as i32)
+			(
+				config.window_settings.size.x as i32,
+				config.window_settings.size.y as i32,
+			)
 		} else {
 			(75, 75)
 		}
@@ -113,41 +119,10 @@ impl BuddyRenderer {
 		let ff_frag = std::str::from_utf8(super::super::FUNFRIEND_FRAG).unwrap();
 		let nop_vert = std::str::from_utf8(super::super::NOP_VERT).unwrap();
 		let nop_frag = std::str::from_utf8(super::super::NOP_FRAG).unwrap();
-		let buddy_shader = super::super::glfn::shader(nop_vert, ff_frag);
-		let bg_shader = super::super::glfn::shader(nop_vert, nop_frag);
+		let buddy_shader = super::super::glfn::shader(ff_frag, nop_vert);
+		let bg_shader = super::super::glfn::shader(nop_frag, nop_vert);
 
 		(buddy_shader, bg_shader)
-	}
-
-	fn compile_shader(vertex: &str, fragment: &str) -> GLuint {
-		unsafe {
-			let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
-			let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);
-
-			let c_str_vertex = CString::new(vertex.as_bytes()).unwrap();
-			let c_str_fragment = CString::new(fragment.as_bytes()).unwrap();
-
-			gl::ShaderSource(vertex_shader, 1, &c_str_vertex.as_ptr(), std::ptr::null());
-			gl::CompileShader(vertex_shader);
-
-			gl::ShaderSource(
-				fragment_shader,
-				1,
-				&c_str_fragment.as_ptr(),
-				std::ptr::null(),
-			);
-			gl::CompileShader(fragment_shader);
-
-			let shader_program = gl::CreateProgram();
-			gl::AttachShader(shader_program, vertex_shader);
-			gl::AttachShader(shader_program, fragment_shader);
-			gl::LinkProgram(shader_program);
-
-			gl::DeleteShader(vertex_shader);
-			gl::DeleteShader(fragment_shader);
-
-			shader_program
-		}
 	}
 
 	//noinspection RsCStringPointer

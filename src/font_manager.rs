@@ -89,7 +89,7 @@ impl FontMan {
 	}
 
 	fn parse_args(data: &String) -> HashMap<String, String> {
-		tracing::info!("Got data to parse: {}", data);
+		// tracing::info!("Got data to parse: {}", data);
 
 		let mut args = HashMap::new();
 		let mut chars = data.chars().peekable();
@@ -105,7 +105,7 @@ impl FontMan {
 				'=' if parsing_key => {
 					// Once we encounter '=', switch to value parsing mode
 					parsing_key = false;
-					is_value = true;  // Now we will be capturing the value
+					is_value = true; // Now we will be capturing the value
 				}
 				'"' => {
 					// Handle quotes for value
@@ -120,7 +120,10 @@ impl FontMan {
 				}
 				' ' | '\t' | '\n' => {
 					// Skip whitespace, unless we are inside quotes or currently parsing a value
-					if !in_quotes && !parsing_key && !current_key.is_empty() && !current_value.is_empty() {
+					if !in_quotes
+						&& !parsing_key && !current_key.is_empty()
+						&& !current_value.is_empty()
+					{
 						// Finished parsing a key-value pair
 						args.insert(current_key.clone(), current_value.clone());
 						current_key.clear();
@@ -145,7 +148,7 @@ impl FontMan {
 		if !current_key.is_empty() && !current_value.is_empty() {
 			args.insert(current_key, current_value);
 		}
-		tracing::info!("Got args: {:?}", args);
+		// tracing::info!("Got args: {:?}", args);
 		args
 	}
 

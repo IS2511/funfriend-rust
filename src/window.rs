@@ -9,6 +9,7 @@ pub struct Window {
 impl Window {
 	pub fn new(width: u32, height: u32, title: &str) -> Self {
 		let mut glfw = glfw::init(glfw::fail_on_errors!()).unwrap();
+		glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
 		glfw.window_hint(glfw::WindowHint::Decorated(true));
 		glfw.window_hint(glfw::WindowHint::Resizable(false));
 		glfw.window_hint(glfw::WindowHint::Focused(false));
@@ -20,7 +21,6 @@ impl Window {
 			.expect("Failed to create GLFW window");
 		window.set_framebuffer_size_polling(true);
 		window.set_key_polling(true);
-
 		Self {
 			glfw,
 			window_handle: window,

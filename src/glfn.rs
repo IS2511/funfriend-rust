@@ -24,7 +24,7 @@ pub fn buffer_data_array(target: GLenum, data: &[u8], usage_hint: GLenum) {
 }
 
 pub fn shader(fragment: &str, vertex: &str) -> GLuint {
-	
+	tracing::info!("Received shader request.\nFragment: {}\nVertex: {}", fragment, vertex);
 	let vertex_shader = compile_shader(vertex, gl::VERTEX_SHADER);
 	let fragment_shader = compile_shader(fragment, gl::FRAGMENT_SHADER);
 
@@ -36,7 +36,7 @@ pub fn shader(fragment: &str, vertex: &str) -> GLuint {
 
 		let mut success: GLint = 0;
 		gl::GetProgramiv(program, gl::LINK_STATUS, &mut success);
-		if success != gl::TRUE as GLint {
+		if success == gl::FALSE as GLint {
 			let mut info_log: Vec<u8> = Vec::with_capacity(512);
 			gl::GetProgramInfoLog(
 				program,
@@ -60,8 +60,10 @@ fn load_shader_file(vertex_filename: &str) -> String {
 
 fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
 	let shader = unsafe { gl::CreateShader(shader_type) };
-	let c_str = CString::new(source.as_bytes()).unwrap();
-
+	let c_str = CString::new(source).expect("Failed to convert source to CString.");
+	
+	tracing::info!("c_str: {:?}", c_str);
+	
 	unsafe {
 		gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
 		gl::CompileShader(shader);
@@ -72,7 +74,7 @@ fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
 		gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
 	}
 	if success == gl::FALSE as GLint {
-		let mut info_log: Vec<u8> = Vec::with_capacity(512);
+		let mut info_log = vec![0; 512]; // Properly initialize the buffer
 		unsafe {
 			gl::GetShaderInfoLog(
 				shader,
@@ -81,7 +83,9 @@ fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
 				info_log.as_mut_ptr() as *mut i8,
 			);
 		}
-		tracing::error!("ERROR::SHADER::COMPILATION_FAILED\n{:?}", info_log);
+		let log_message = String::from_utf8_lossy(&info_log);
+		let log_message = log_message.trim_end_matches(char::from(0));
+		tracing::error!("Shader Info Log: {}", log_message);
 	}
 
 	shader

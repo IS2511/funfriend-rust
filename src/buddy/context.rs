@@ -1,9 +1,3 @@
-use std::cell::RefCell;
-use std::ops::Deref;
-use std::rc::Rc;
-use std::sync::Mutex;
-use glfw::Context as _;
-use rand::prelude::SliceRandom;
 use super::super::{
 	buddy::{
 		buddies::funfriend::{self, DialogType},
@@ -14,6 +8,12 @@ use super::super::{
 	vec2::Vec2,
 	window::Window,
 };
+use glfw::Context as _;
+use rand::prelude::SliceRandom;
+use std::cell::RefCell;
+use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
+use std::sync::Mutex;
 
 const CHATTER_TIMER: f64 = 3.0;
 const STAY_STILL_AFTER_HELD: f64 = 1.0;
@@ -53,19 +53,20 @@ impl BuddyContext {
 		let name = format!("??__{}__??", b_ref.name());
 		drop(b_ref);
 		let mut window = Window::new(512, 512, name.as_str());
-		
+
 		let renderer = BuddyRenderer::new(buddy.clone(), &mut window);
 		let window_size = Self::get_window_size(&renderer);
 		let mut b_ref = buddy.borrow_mut();
-		
+
 		window
 			.window_handle
 			.set_size(window_size.x as i32, window_size.y as i32);
 		window.window_handle.make_current();
+		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 		let binding = b_ref.dialog(DialogType::Chatter);
 		let sample = binding.choose(&mut rand::thread_rng());
 		let chatter_array = Some(vec![sample.unwrap().deref().to_owned()]);
-		
+
 		drop(b_ref);
 
 		Self {
@@ -95,7 +96,10 @@ impl BuddyContext {
 	// }
 	fn get_window_size(renderer: &BuddyRenderer) -> Vec2 {
 		let size = renderer.funfriend_size();
-		Vec2::new_i((size.0 as f64 * 1.3).floor() as i32, (size.1 as f64 * 1.3).floor() as i32)
+		Vec2::new_i(
+			(size.0 as f64 * 1.3).floor() as i32,
+			(size.1 as f64 * 1.3).floor() as i32,
+		)
 	}
 
 	fn random_pos(&self) -> Vec2 {
@@ -121,6 +125,7 @@ impl BuddyContext {
 
 	pub fn render(&mut self, dt: f64) {
 		self.window.window_handle.make_current();
+		gl::load_with(|s| self.window.glfw.get_proc_address_raw(s) as *const _);
 		let window_size = Self::get_window_size(&self.renderer);
 		self.renderer
 			.render(dt, window_size.x as i32, window_size.y as i32);
@@ -178,7 +183,7 @@ impl BuddyContext {
 							y_target = self.window.window_handle.get_pos().1 as f64 + y_dist
 								- FOLLOW_DIST as f64 * y_dist.signum();
 						}
-						
+
 						self.goto(Vec2::new(x_target, y_target), 1.0, true);
 					}
 				}
@@ -277,13 +282,14 @@ impl BuddyContext {
 	}
 }
 
-impl FFContext for BuddyContext{
+impl FFContext for BuddyContext {
 	fn should_close(&self) -> bool {
 		self.window.window_handle.should_close()
 	}
 
 	fn clean_up(&mut self) {
 		self.renderer.clean_up();
+		
 	}
 
 	fn update(&mut self, dt: f64) {
@@ -311,7 +317,7 @@ impl FFContext for BuddyContext{
 
 		self.window.window_handle.swap_buffers();
 	}
-	
+
 	fn get_window(&mut self) -> &mut Window {
 		&mut self.window
 	}

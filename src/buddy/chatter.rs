@@ -1,8 +1,8 @@
-use glfw::Context as _;
-use crate::buddy::context::FFContext;
 use super::super::{
 	font_manager::FontMan, text_renderer::TextRenderer, vec2::Vec2, window::Window,
 };
+use crate::buddy::context::FFContext;
+use glfw::Context as _;
 
 pub struct ChatterContext {
 	renderer: TextRenderer,
@@ -81,6 +81,7 @@ impl ChatterContext {
 
 	pub fn render(&mut self, dt: f64) {
 		self.window.window_handle.make_current();
+		gl::load_with(|s| self.window.glfw.get_proc_address_raw(s) as *const _);
 		unsafe {
 			gl::ClearColor(0.0, 0.0, 0.0, 1.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -94,7 +95,7 @@ impl ChatterContext {
 	}
 }
 
-impl FFContext for ChatterContext{
+impl FFContext for ChatterContext {
 	fn update(&mut self, dt: f64) {
 		self.timer -= dt;
 		if self.timer <= 0.0 {

@@ -1,7 +1,7 @@
 use rand::Rng as _;
+use serde::{Deserialize, Serialize};
 use std::f32::consts::TAU;
 use std::ops::{Add, Div, Mul, Neg, Sub};
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Vec2 {
@@ -236,6 +236,10 @@ impl Div<f64> for Vec2 {
 
 impl PartialEq for Vec2 {
 	fn eq(&self, other: &Self) -> bool {
-		if self.eq(*other) { true } else { false }
+		if self.eq(*other) {
+			true
+		} else {
+			false
+		}
 	}
 }
