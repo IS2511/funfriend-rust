@@ -71,7 +71,7 @@ impl FontMan {
 					x_offset: args_map["xoffset"].parse().unwrap(),
 					y_offset: args_map["yoffset"].parse().unwrap(),
 					x_advance: args_map["xadvance"].parse().unwrap(),
-					letter: args_map["letter"].parse().unwrap(),
+					letter: args_map["letter"].parse().unwrap_or(' '),
 				}),
 				"kerning" => kernings.push(BMKerning {
 					first: args_map["first"].parse().unwrap(),
@@ -89,14 +89,63 @@ impl FontMan {
 	}
 
 	fn parse_args(data: &String) -> HashMap<String, String> {
+		tracing::info!("Got data to parse: {}", data);
+
 		let mut args = HashMap::new();
-		let pairs: Vec<&str> = data.split_whitespace().collect();
-		for pair in pairs {
-			let mut split = pair.splitn(2, '=');
-			let key = split.next().unwrap().to_string();
-			let value = split.next().unwrap().to_string();
-			args.insert(key, value);
+		let mut chars = data.chars().peekable();
+		let mut current_key = String::new();
+		let mut current_value = String::new();
+		let mut in_quotes = false;
+		let mut parsing_key = true; // Flag to differentiate between key and value parsing
+		let mut is_value = false; // To track when we're parsing values after '='
+
+		// Iterate through each character in the string
+		while let Some(ch) = chars.next() {
+			match ch {
+				'=' if parsing_key => {
+					// Once we encounter '=', switch to value parsing mode
+					parsing_key = false;
+					is_value = true;  // Now we will be capturing the value
+				}
+				'"' => {
+					// Handle quotes for value
+					if in_quotes {
+						// Closing quote, store value if key and value are set
+						args.insert(current_key.clone(), current_value.clone());
+						current_key.clear();
+						current_value.clear();
+						parsing_key = true; // We expect a new key now
+					}
+					in_quotes = !in_quotes; // Toggle the quote flag
+				}
+				' ' | '\t' | '\n' => {
+					// Skip whitespace, unless we are inside quotes or currently parsing a value
+					if !in_quotes && !parsing_key && !current_key.is_empty() && !current_value.is_empty() {
+						// Finished parsing a key-value pair
+						args.insert(current_key.clone(), current_value.clone());
+						current_key.clear();
+						current_value.clear();
+						parsing_key = true; // Now we expect a new key
+					}
+				}
+				_ => {
+					// Accumulate characters for key or value
+					if parsing_key {
+						current_key.push(ch); // If parsing key, build the key
+					} else if in_quotes {
+						current_value.push(ch); // If in quotes, accumulate the value
+					} else {
+						current_value.push(ch); // Otherwise, accumulate the value normally
+					}
+				}
+			}
 		}
+
+		// Handle any remaining key-value pair
+		if !current_key.is_empty() && !current_value.is_empty() {
+			args.insert(current_key, current_value);
+		}
+		tracing::info!("Got args: {:?}", args);
 		args
 	}
 

@@ -82,6 +82,6 @@ pub fn make_buddy(name: &str) -> Rc<RefCell<dyn Buddy>> {
 	}
 }
 
-pub fn make_buddy_context(buddy: Rc<RefCell<dyn Buddy>>, window: Rc<RefCell<super::super::super::Window>>) -> Rc<RefCell<dyn FFContext>> {
-	Rc::new(RefCell::new(BuddyContext::new(buddy, window)))
+pub fn make_buddy_context(buddy: Rc<RefCell<dyn Buddy>>) -> Rc<RefCell<dyn FFContext>> {
+	Rc::new(RefCell::new(BuddyContext::new(buddy)))
 }

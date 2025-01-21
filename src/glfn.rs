@@ -23,12 +23,10 @@ pub fn buffer_data_array(target: GLenum, data: &[u8], usage_hint: GLenum) {
 	}
 }
 
-pub fn shader(fragment_filename: &str, vertex_filename: &str) -> GLuint {
-	let vertex_shader_source = load_shader_file(vertex_filename);
-	let fragment_shader_source = load_shader_file(fragment_filename);
-
-	let vertex_shader = compile_shader(vertex_shader_source, gl::VERTEX_SHADER);
-	let fragment_shader = compile_shader(fragment_shader_source, gl::FRAGMENT_SHADER);
+pub fn shader(fragment: &str, vertex: &str) -> GLuint {
+	
+	let vertex_shader = compile_shader(vertex, gl::VERTEX_SHADER);
+	let fragment_shader = compile_shader(fragment, gl::FRAGMENT_SHADER);
 
 	unsafe {
 		let program = gl::CreateProgram();
@@ -60,9 +58,9 @@ fn load_shader_file(vertex_filename: &str) -> String {
 	contents
 }
 
-fn compile_shader(source: String, shader_type: GLenum) -> GLuint {
+fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
 	let shader = unsafe { gl::CreateShader(shader_type) };
-	let c_str = CString::new(source).unwrap();
+	let c_str = CString::new(source.as_bytes()).unwrap();
 
 	unsafe {
 		gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());

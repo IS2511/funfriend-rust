@@ -63,7 +63,7 @@ impl Funfriend {
 		self.window = Some(window.clone());
 		if let Some(window) = &mut self.window.clone() {
 			let buddy = make_buddy(config_manager::CONFIG.lock().unwrap().buddy_settings.buddy_type.as_str().clone());
-			self.add_context(make_buddy_context(buddy.clone(), if self.window.is_some(){window.clone()} else {panic!("window doesn't exist!")}));
+			self.add_context(make_buddy_context(buddy.clone()));
 			self.set_buddy(buddy);
 			
 			let mut window = window.borrow_mut();
@@ -74,7 +74,7 @@ impl Funfriend {
 				tracing::info!("new frame");
 				window.glfw.poll_events();
 				let dt = window.glfw.get_time();
-				-last_t;
+				// -last_t;
 				last_t = window.glfw.get_time();
 
 				tracing::info!("about to iterate over contexts");
@@ -106,9 +106,33 @@ impl Funfriend {
 			}
 		}
 	}
+	
+	fn run2(&mut self) {
+		let mut last_t = 0.0;
+		let buddy = make_buddy(config_manager::CONFIG.lock().unwrap().buddy_settings.buddy_type.as_str().clone());
+		self.add_context(make_buddy_context(buddy.clone()));
+		self.set_buddy(buddy);
+		while !self.contexts.is_empty() {
+			for context in self.contexts.iter().enumerate() {
+				let mut context = context.1.borrow_mut();
+				tracing::info!("new frame");
+				context.get_window().glfw.poll_events();
+				let dt = context.get_window().glfw.get_time();
+				-last_t;
+				last_t = context.get_window().glfw.get_time();
+				if context.should_close() {
+					tracing::info!("trying to close?");
+					context.clean_up();
+				} else {
+					tracing::info!("running update");
+					let _ = context.update(dt);
+				}
+			}
+		}
+	}
 }
 
 fn main() {
 	let mut app = Funfriend::new();
-	app.run();
+	app.run2();
 }

@@ -24,6 +24,7 @@ pub trait FFContext {
 	fn should_close(&self) -> bool;
 	fn clean_up(&mut self);
 	fn update(&mut self, dt: f64);
+	fn get_window(&mut self) -> &mut Window;
 }
 
 pub struct BuddyContext {
@@ -43,26 +44,28 @@ pub struct BuddyContext {
 	pub easing_dur: f64,
 	pub easing_t: f64,
 	pub wander_timer: f64,
-	pub window: Rc<RefCell<Window>>,
+	pub window: Window,
 }
 
 impl BuddyContext {
-	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>, window: Rc<RefCell<Window>>) -> Self {
-		let renderer = BuddyRenderer::new(buddy.clone(), window.clone());
-		let window_size = Self::get_window_size(&renderer);
+	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>) -> Self {
+		let mut b_ref = buddy.borrow_mut();
+		let name = format!("??__{}__??", b_ref.name());
+		drop(b_ref);
+		let mut window = Window::new(512, 512, name.as_str());
 		
-		let mut w_ref = window.borrow_mut();
+		let renderer = BuddyRenderer::new(buddy.clone(), &mut window);
+		let window_size = Self::get_window_size(&renderer);
 		let mut b_ref = buddy.borrow_mut();
 		
-		w_ref
+		window
 			.window_handle
 			.set_size(window_size.x as i32, window_size.y as i32);
-		w_ref.window_handle.make_current();
+		window.window_handle.make_current();
 		let binding = b_ref.dialog(DialogType::Chatter);
 		let sample = binding.choose(&mut rand::thread_rng());
 		let chatter_array = Some(vec![sample.unwrap().deref().to_owned()]);
 		
-		drop(w_ref);
 		drop(b_ref);
 
 		Self {
@@ -117,21 +120,18 @@ impl BuddyContext {
 	}
 
 	pub fn render(&mut self, dt: f64) {
-		let mut window = self.window.borrow_mut();
-		window.window_handle.make_current();
+		self.window.window_handle.make_current();
 		let window_size = Self::get_window_size(&self.renderer);
-		drop(window);
 		self.renderer
 			.render(dt, window_size.x as i32, window_size.y as i32);
 	}
 
 	pub fn goto(&mut self, pos: Vec2, dur: f64, set_as_static: bool) {
-		let window = self.window.borrow_mut();
 		self.easing_t = 0.0;
 		self.easing_dur = dur;
 		self.easing_from = Vec2::new(
-			window.window_handle.get_pos().0 as f64,
-			window.window_handle.get_pos().1 as f64,
+			self.window.window_handle.get_pos().0 as f64,
+			self.window.window_handle.get_pos().1 as f64,
 		);
 		self.easing_to = pos;
 
@@ -144,11 +144,10 @@ impl BuddyContext {
 
 	pub fn update_wander(&mut self, dt: f64) {
 		if self.moving() {
-			let mut window = self.window.borrow_mut();
 			self.easing_t += dt;
 			let a = ease::in_out_sine(self.easing_t / self.easing_dur);
 			let new_position = self.easing_from * (1.0 - a) + self.easing_to * a;
-			window
+			self.window
 				.window_handle
 				.set_pos(new_position.x as i32, new_position.y as i32);
 
@@ -163,24 +162,23 @@ impl BuddyContext {
 				}
 				Behavior::Follow => {
 					if !self.moving() {
-						let window = self.window.borrow_mut();
-						let cursor_pos = window.window_handle.get_cursor_pos();
-						let mut x_target = window.window_handle.get_pos().0 as f64;
-						let mut y_target = window.window_handle.get_pos().1 as f64;
+						let cursor_pos = self.window.window_handle.get_cursor_pos();
+						let mut x_target = self.window.window_handle.get_pos().0 as f64;
+						let mut y_target = self.window.window_handle.get_pos().1 as f64;
 
 						let x_dist = cursor_pos.0;
 						let y_dist = cursor_pos.1;
 
 						if x_dist.abs() > FOLLOW_DIST as f64 {
-							x_target = window.window_handle.get_pos().0 as f64 + x_dist
+							x_target = self.window.window_handle.get_pos().0 as f64 + x_dist
 								- FOLLOW_DIST as f64 * x_dist.signum();
 						}
 
 						if y_dist.abs() > FOLLOW_DIST as f64 {
-							y_target = window.window_handle.get_pos().1 as f64 + y_dist
+							y_target = self.window.window_handle.get_pos().1 as f64 + y_dist
 								- FOLLOW_DIST as f64 * y_dist.signum();
 						}
-						drop(window);
+						
 						self.goto(Vec2::new(x_target, y_target), 1.0, true);
 					}
 				}
@@ -190,14 +188,11 @@ impl BuddyContext {
 	}
 
 	pub fn update_pos(&mut self, dt: f64) {
-		let window = self.window.borrow_mut();
-		let cursor_pos = window.window_handle.get_cursor_pos();
-		drop(window);
+		let cursor_pos = self.window.window_handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 		if self.held {
-			let mut window = self.window.borrow_mut();
 			self.static_pos = cursor_pos - self.held_at + cursor_pos;
-			window
+			self.window
 				.window_handle
 				.set_pos(self.static_pos.x as i32, self.static_pos.y as i32);
 		} else {
@@ -230,7 +225,6 @@ impl BuddyContext {
 	}
 
 	pub fn say(&mut self, text_groups: Vec<Vec<String>>) {
-		let window = self.window.borrow_mut();
 		let buddy = self.buddy.borrow();
 		let flattened_texts: Vec<String> = text_groups.into_iter().flatten().collect();
 		let window_size = Self::get_window_size(&self.renderer);
@@ -239,8 +233,8 @@ impl BuddyContext {
 		let mut last_context: Option<Box<ChatterContext>> = None;
 
 		let text_position = Vec2::new(
-			window.window_handle.get_pos().0 as f64 + window_size.x / 2.0,
-			window.window_handle.get_pos().1 as f64 - 20.0,
+			self.window.window_handle.get_pos().0 as f64 + window_size.x / 2.0,
+			self.window.window_handle.get_pos().1 as f64 - 20.0,
 		);
 		for text in flattened_texts {
 			let chatter_context = ChatterContext::new(
@@ -285,7 +279,7 @@ impl BuddyContext {
 
 impl FFContext for BuddyContext{
 	fn should_close(&self) -> bool {
-		self.window.borrow().window_handle.should_close()
+		self.window.window_handle.should_close()
 	}
 
 	fn clean_up(&mut self) {
@@ -315,7 +309,11 @@ impl FFContext for BuddyContext{
 		self.update_pos(dt);
 		self.render(dt);
 
-		self.window.borrow_mut().window_handle.swap_buffers();
+		self.window.window_handle.swap_buffers();
+	}
+	
+	fn get_window(&mut self) -> &mut Window {
+		&mut self.window
 	}
 }
 

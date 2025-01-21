@@ -18,8 +18,7 @@ pub struct BuddyRenderer {
 }
 
 impl BuddyRenderer {
-	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>, window: Rc<RefCell<super::super::Window>>) -> Self {
-		let mut window = window.borrow_mut();
+	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>, window: &mut super::super::Window) -> Self {
 		let mut buddy = buddy.borrow_mut();
 		window.window_handle.make_current();
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
@@ -114,18 +113,13 @@ impl BuddyRenderer {
 		let ff_frag = std::str::from_utf8(super::super::FUNFRIEND_FRAG).unwrap();
 		let nop_vert = std::str::from_utf8(super::super::NOP_VERT).unwrap();
 		let nop_frag = std::str::from_utf8(super::super::NOP_FRAG).unwrap();
-		let buddy_shader = Self::compile_shader(nop_vert, ff_frag);
-		let bg_shader = Self::compile_shader(nop_vert, nop_frag);
+		let buddy_shader = super::super::glfn::shader(nop_vert, ff_frag);
+		let bg_shader = super::super::glfn::shader(nop_vert, nop_frag);
 
 		(buddy_shader, bg_shader)
 	}
 
 	fn compile_shader(vertex: &str, fragment: &str) -> GLuint {
-		// let vertex_shader_code =
-		// 	std::fs::read_to_string(vertex_path).expect("Failed to read vertex shader");
-		// let fragment_shader_code =
-		// 	std::fs::read_to_string(fragment_path).expect("Failed to read fragment shader");
-
 		unsafe {
 			let vertex_shader = gl::CreateShader(gl::VERTEX_SHADER);
 			let fragment_shader = gl::CreateShader(gl::FRAGMENT_SHADER);

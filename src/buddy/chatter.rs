@@ -110,4 +110,8 @@ impl FFContext for ChatterContext{
 	fn should_close(&self) -> bool {
 		self.window.window_handle.should_close()
 	}
+
+	fn get_window(&mut self) -> &mut Window {
+		&mut self.window
+	}
 }
