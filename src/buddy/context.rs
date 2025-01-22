@@ -16,6 +16,7 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use glfw::ffi::{GLFWmonitor, GLFWvidmode};
 use rand::Rng as _;
+use winit::raw_window_handle::HasWindowHandle;
 
 const CHATTER_TIMER: f64 = 3.0;
 const STAY_STILL_AFTER_HELD: f64 = 1.0;
@@ -33,10 +34,11 @@ pub trait FFContext {
 
 pub struct BuddyContext {
 	pub buddy: Rc<RefCell<dyn funfriend::Buddy>>,
+	pub owned_contexts: Vec<Rc<RefCell<dyn FFContext>>>,
 	pub renderer: BuddyRenderer,
 	pub chatter_timer: f64,
 	pub chatter_index: i32,
-	pub chatter_array: Option<Vec<Vec<String>>>,
+	pub chatter_array: Option<Vec<String>>,
 	pub held: bool,
 	pub held_at: Vec2,
 	pub started_holding_at: Vec2,
@@ -71,14 +73,16 @@ impl BuddyContext {
 			.window_handle
 			.set_size(window_size.x as i32, window_size.y as i32);
 		window.window_handle.make_current();
+		// window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 		let binding = b_ref.dialog(DialogType::Chatter);
 		let sample = binding.choose(&mut rand::thread_rng());
-		let chatter_array = Some(vec![sample.unwrap().deref().to_owned()]);
+		let chatter_array = Some(sample.unwrap().deref().to_owned());
 		drop(b_ref);
 		let config = super::super::config_manager::CONFIG.try_lock().unwrap();
 		let mut result = Self {
 			buddy: buddy.clone(),
+			owned_contexts: Vec::new(),
 			renderer,
 			chatter_timer: 1.0,
 			chatter_index: 0,
@@ -113,6 +117,7 @@ impl BuddyContext {
 		tracing::info!("random position: {:?}", random_position);
 		result.window.window_handle.set_pos(random_position.x as i32, random_position.y as i32);
 		result.internal_pos = random_position;
+		result.static_pos = random_position;
 		drop(config);
 		result
 	}
@@ -246,6 +251,7 @@ impl BuddyContext {
 
 			self.wander_timer = WANDER_TIMER;
 		} else {
+			tracing::info!("behavior: {:?}", self.behavior());
 			match self.behavior() {
 				Behavior::Wander => {
 					self.wander_timer -= dt;
@@ -279,13 +285,12 @@ impl BuddyContext {
 			}
 		}
 	}
-
+	
 	pub fn update_pos(&mut self, dt: f64) {
 		let cursor_pos = self.window.window_handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 		if self.held {
-			tracing::info!("should be held");
-			self.static_pos = cursor_pos - self.held_at + cursor_pos;
+			self.static_pos = self.static_pos - self.held_at + cursor_pos;
 			self.window
 				.window_handle
 				.set_pos(self.static_pos.x as i32, self.static_pos.y as i32);
@@ -370,37 +375,43 @@ impl BuddyContext {
 		}
 	}
 	
-	pub fn say(&mut self, text_groups: Vec<Vec<String>>) {
-		let buddy = self.buddy.borrow();
-		let flattened_texts: Vec<String> = text_groups.into_iter().flatten().collect();
-		let window_size = Self::get_window_size(&self.renderer);
-		let window_size = Vec2::new(window_size.x, window_size.y);
-
-		let mut last_context: Option<Box<ChatterContext>> = None;
-
-		let text_position = Vec2::new(
-			self.window.window_handle.get_pos().0 as f64 + window_size.x / 2.0,
-			self.window.window_handle.get_pos().1 as f64 - 20.0,
-		);
-		for text in flattened_texts {
-			let chatter_context = ChatterContext::new(
-				&text,
-				&buddy.font(),
-				text_position,
-				ChatterContext::DEFAULT_DURATION,
-				last_context.take(),
-			);
-
-			last_context = Some(Box::new(chatter_context));
-			buddy.talk_sound();
-		}
+	pub fn say(&mut self, text: String) {
+		// for context in Rc::get_mut(self.app_contexts.as_mut()).unwrap().into_iter().enumerate() {
+		// 	if context
+		// }
 	}
-
-	pub fn say_array(&mut self, text: Vec<Vec<String>>) {
-		self.chatter_array = Some(text);
-		self.chatter_timer = 0.0;
-		self.chatter_index = 0;
-	}
+	
+	// pub fn say(&mut self, text_groups: Vec<Vec<String>>) {
+	// 	let buddy = self.buddy.borrow();
+	// 	let flattened_texts: Vec<String> = text_groups.into_iter().flatten().collect();
+	// 	let window_size = Self::get_window_size(&self.renderer);
+	// 	let window_size = Vec2::new(window_size.x, window_size.y);
+	// 
+	// 	let mut last_context: Option<Box<ChatterContext>> = None;
+	// 
+	// 	let text_position = Vec2::new(
+	// 		self.window.window_handle.get_pos().0 as f64 + window_size.x / 2.0,
+	// 		self.window.window_handle.get_pos().1 as f64 - 20.0,
+	// 	);
+	// 	for text in flattened_texts {
+	// 		let chatter_context = ChatterContext::new(
+	// 			&text,
+	// 			&buddy.font(),
+	// 			text_position,
+	// 			ChatterContext::DEFAULT_DURATION,
+	// 			last_context.take(),
+	// 		);
+	// 
+	// 		last_context = Some(Box::new(chatter_context));
+	// 		buddy.talk_sound();
+	// 	}
+	// }
+	// 
+	// pub fn say_array(&mut self, text: Vec<String>) {
+	// 	self.chatter_array = Some(text);
+	// 	self.chatter_timer = 0.0;
+	// 	self.chatter_index = 0;
+	// }
 
 	pub fn speaking(&self) -> bool {
 		if let Some(ref chatter_array) = self.chatter_array {
@@ -434,7 +445,7 @@ impl FFContext for BuddyContext {
 
 	fn update(&mut self, dt: f64) {
 		// tracing::info!("current behavior: {:?}", self.behavior());
-		
+		tracing::info!("expected behavior: {:?}", self.behavior());
 		match self.configured_behavior.as_str() {
 			"dvd" => {
 				self.update_dvd(dt);
@@ -442,21 +453,16 @@ impl FFContext for BuddyContext {
 			"normal" | _ => {
 				self.chatter_timer -= dt;
 				if self.chatter_timer <= 0.0 {
+					tracing::info!("allowed to speak");
 					self.chatter_timer += CHATTER_TIMER;
 
 					if let Some(ref chatter_array) = self.chatter_array {
 						if let Some(chatter) = chatter_array.get(self.chatter_index as usize) {
-							self.say(vec![chatter.clone()]);
+							tracing::info!("should speak from update");
+							self.say(chatter.clone());
 						}
 					}
 					self.chatter_index += 1;
-
-					if let Some(ref chatter_array) = self.chatter_array {
-						if self.chatter_index >= chatter_array.len() as i32 {
-							self.chatter_array = None;
-							self.chatter_index = 0;
-						}
-					}
 				}
 				self.update_pos(dt);
 			}
@@ -474,10 +480,17 @@ impl FFContext for BuddyContext {
 	fn on_click(&mut self, position: Vec2) {
 		self.held = true;
 		self.held_at = position;
+		if self.held_timer <= 0.0 {
+			self.started_holding_at = Vec2::new_t(self.window.window_handle.get_pos());
+		}
+		self.held_timer = STAY_STILL_AFTER_HELD;
+		self.easing_dur = 0.0;
+		self.window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 	}
 	
 	fn on_release(&mut self, _: Vec2) {
 		self.held = false;
+		self.window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Arrow)));
 	}
 }
 

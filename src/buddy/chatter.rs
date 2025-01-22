@@ -36,11 +36,11 @@ impl ChatterContext {
 		let mut window = Window::new(
 			window_size.x as u32,
 			window_size.y as u32,
-			"??_FUNFRIEND_?? > CHATTER",
+			"!!__FUNFRIEND__!! > CHATTER",
 		);
 
-		let window_pos = position - window_size / 2.0;
-
+		window.window_handle.set_pos((position.x - window_size.x / 2.0) as i32, (position.y - window_size.y / 2.0) as i32);
+		
 		let renderer = TextRenderer::new(
 			text.to_string(),
 			font.to_string(),
@@ -105,6 +105,7 @@ impl ChatterContext {
 
 impl FFContext for ChatterContext {
 	fn update(&mut self, dt: f64) {
+		tracing::info!("text timer: {}", self.timer);
 		self.timer -= dt;
 		if self.timer <= 0.0 {
 			self.window.window_handle.set_should_close(true);
