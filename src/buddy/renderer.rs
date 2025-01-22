@@ -122,7 +122,7 @@ impl BuddyRenderer {
 	}
 
 	//noinspection RsCStringPointer
-	pub fn render(&mut self, dt: f64, window_width: i32, window_height: i32) {
+	pub fn render(&mut self, dt: f64, window_width: i32, window_height: i32, window: &super::super::Window) {
 		unsafe {
 			gl::ClearColor(0.0, 0.0, 0.0, 0.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);
@@ -182,7 +182,7 @@ impl BuddyRenderer {
 			);
 			gl::Uniform1f(
 				gl::GetUniformLocation(self.buddy_shader, CString::new("time").unwrap().as_ptr()),
-				dt as f32,
+				window.glfw.get_time() as f32,
 			);
 
 			gl::BindVertexArray(self.vertex_array);

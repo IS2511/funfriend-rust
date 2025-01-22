@@ -14,7 +14,7 @@ pub fn init() {
 		.with(CustomLogLayer)
 		.try_init()
 		.expect("failed to init logger");
-	tracing::info!("Logger initialized! Hi :)");
+	tracing::info!("Logger initialized.");
 }
 
 impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for CustomLogLayer {

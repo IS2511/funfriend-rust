@@ -24,11 +24,11 @@ pub fn buffer_data_array(target: GLenum, data: &[u8], usage_hint: GLenum) {
 }
 
 pub fn shader(fragment: &str, vertex: &str) -> GLuint {
-	tracing::info!(
-		"Received shader request.\nFragment: {}\nVertex: {}",
-		fragment,
-		vertex
-	);
+	// tracing::info!(
+	// 	"Received shader request.\nFragment: {}\nVertex: {}",
+	// 	fragment,
+	// 	vertex
+	// );
 	let vertex_shader = compile_shader(vertex, gl::VERTEX_SHADER);
 	let fragment_shader = compile_shader(fragment, gl::FRAGMENT_SHADER);
 
@@ -66,7 +66,7 @@ fn compile_shader(source: &str, shader_type: GLenum) -> GLuint {
 	let shader = unsafe { gl::CreateShader(shader_type) };
 	let c_str = CString::new(source).expect("Failed to convert source to CString.");
 
-	tracing::info!("c_str: {:?}", c_str);
+	// tracing::info!("c_str: {:?}", c_str);
 
 	unsafe {
 		gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());

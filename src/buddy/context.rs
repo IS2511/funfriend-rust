@@ -14,6 +14,7 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::Mutex;
+use glfw::ffi::{GLFWmonitor, GLFWvidmode};
 
 const CHATTER_TIMER: f64 = 3.0;
 const STAY_STILL_AFTER_HELD: f64 = 1.0;
@@ -50,7 +51,7 @@ pub struct BuddyContext {
 impl BuddyContext {
 	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>) -> Self {
 		let mut b_ref = buddy.borrow_mut();
-		let name = format!("??__{}__??", b_ref.name());
+		let name = format!("!!__{}__!!", b_ref.name());
 		drop(b_ref);
 		let mut window = Window::new(512, 512, name.as_str());
 
@@ -69,7 +70,7 @@ impl BuddyContext {
 
 		drop(b_ref);
 
-		Self {
+		let mut result = Self {
 			buddy: buddy.clone(),
 			renderer,
 			chatter_timer: 1.0,
@@ -87,7 +88,12 @@ impl BuddyContext {
 			easing_t: 0.0,
 			wander_timer: WANDER_TIMER,
 			window,
-		}
+		};
+
+		let random_position = Self::random_pos_current_monitor(&result);
+		result.window.window_handle.set_pos(random_position.x as i32, random_position.y as i32);
+		
+		result
 	}
 
 	// fn random_pos(&self) -> Vec2 {
@@ -122,13 +128,69 @@ impl BuddyContext {
 		let rand_y = y + (height as f64 * rand::random::<f64>()) as i32;
 		Vec2::new_i(rand_x, rand_y)
 	}
+	
+	fn random_pos_current_monitor(&self) -> Vec2 {
+		let (monitor, x, y, w, h) = Self::get_current_monitor(self.window.window_handle.window_ptr());
+		let rand_x = x + (w as f64 * rand::random::<f64>()) as i32;
+		let rand_y = y + (h as f64 * rand::random::<f64>()) as i32;
+		Vec2::new_i(rand_x, rand_y)
+	}
+	
+	fn get_current_monitor(window: *mut glfw::ffi::GLFWwindow) -> (*mut GLFWmonitor, i32, i32, i32, i32) {
+		let mut monitor_count: std::ffi::c_int = 0;
+		
+		let mut wx: std::ffi::c_int = 0;
+		let mut wy: std::ffi::c_int = 0;
+		let mut ww: std::ffi::c_int = 0;
+		let mut wh: std::ffi::c_int = 0;
+		
+		let mut mx: std::ffi::c_int = 0;
+		let mut my: std::ffi::c_int = 0;
+		let mut mw: std::ffi::c_int = 0;
+		let mut mh: std::ffi::c_int = 0;
+		let mut overlap: std::ffi::c_int;
+		let mut best_overlap: std::ffi::c_int;
+		
+		let mut mode: *const GLFWvidmode;
+		let mut best_monitor: (*mut GLFWmonitor, i32, i32, i32, i32) = (std::ptr::null_mut(), 0, 0, 0, 0);
+		let mut monitors: *mut *mut GLFWmonitor;
+		best_overlap = 0;
+		unsafe {
+			glfw::ffi::glfwGetWindowPos(window, &mut wx, &mut wy);
+			glfw::ffi::glfwGetWindowSize(window, &mut ww, &mut wh);
+			
+			monitors = glfw::ffi::glfwGetMonitors(&mut monitor_count);
+			
+			for i in 0..monitor_count {
+				let monitor = *monitors.add(i as usize);
+				mode = glfw::ffi::glfwGetVideoMode(monitor);
+				glfw::ffi::glfwGetMonitorPos(monitor, &mut mx, &mut my);
+				mw = mode.as_ref().unwrap().width;
+				wh = mode.as_ref().unwrap().height;
+				
+				overlap =
+					(0.max((wx+ww).min(mx+mw)-wx.max(mx))) * 
+						(0.max((wy+wh).min(my+mh) - wy.max(my)));
+				
+				if best_overlap < overlap {
+					best_overlap = overlap;
+					best_monitor.0 = monitor;
+					best_monitor.1 = wx;
+					best_monitor.2 = wy;
+					best_monitor.3 = ww;
+					best_monitor.4 = wh;
+				}
+			}
+		}
+		best_monitor
+	}
 
 	pub fn render(&mut self, dt: f64) {
 		self.window.window_handle.make_current();
 		gl::load_with(|s| self.window.glfw.get_proc_address_raw(s) as *const _);
 		let window_size = Self::get_window_size(&self.renderer);
 		self.renderer
-			.render(dt, window_size.x as i32, window_size.y as i32);
+			.render(dt, window_size.x as i32, window_size.y as i32, &self.window);
 	}
 
 	pub fn goto(&mut self, pos: Vec2, dur: f64, set_as_static: bool) {
@@ -148,6 +210,7 @@ impl BuddyContext {
 	}
 
 	pub fn update_wander(&mut self, dt: f64) {
+		// tracing::info!("dt: {}", dt);
 		if self.moving() {
 			self.easing_t += dt;
 			let a = ease::in_out_sine(self.easing_t / self.easing_dur);
@@ -196,6 +259,7 @@ impl BuddyContext {
 		let cursor_pos = self.window.window_handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 		if self.held {
+			tracing::info!("should be held");
 			self.static_pos = cursor_pos - self.held_at + cursor_pos;
 			self.window
 				.window_handle
@@ -292,6 +356,7 @@ impl FFContext for BuddyContext {
 	}
 
 	fn update(&mut self, dt: f64) {
+		// tracing::info!("current behavior: {:?}", self.behavior());
 		self.chatter_timer -= dt;
 		if self.chatter_timer <= 0.0 {
 			self.chatter_timer += CHATTER_TIMER;

@@ -136,10 +136,9 @@ impl Funfriend {
 		while !self.contexts.is_empty() {
 			self.contexts.retain_mut(|context| {
 				let mut context = context.borrow_mut();
-				tracing::info!("new frame");
+				// tracing::info!("new frame");
 				context.get_window().glfw.poll_events();
-				let dt = context.get_window().glfw.get_time();
-				-last_t;
+				let dt = context.get_window().glfw.get_time()-last_t;
 				last_t = context.get_window().glfw.get_time();
 				let flushed_events = glfw::flush_messages(&context.get_window().events);
 				let mut should_close = false;
@@ -160,7 +159,7 @@ impl Funfriend {
 					context.clean_up();
 					false
 				} else {
-					tracing::info!("running update");
+					// tracing::info!("running update");
 					context.update(dt);
 					context.get_window().window_handle.swap_buffers();
 					context.get_window().glfw.wait_events_timeout(1.0 / 120.0);
