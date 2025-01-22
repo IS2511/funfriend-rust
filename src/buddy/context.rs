@@ -11,10 +11,11 @@ use super::super::{
 use glfw::Context as _;
 use rand::prelude::SliceRandom;
 use std::cell::RefCell;
-use std::ops::{Deref, DerefMut};
+use std::ops::{AddAssign, Deref, DerefMut};
 use std::rc::Rc;
 use std::sync::Mutex;
 use glfw::ffi::{GLFWmonitor, GLFWvidmode};
+use rand::Rng as _;
 
 const CHATTER_TIMER: f64 = 3.0;
 const STAY_STILL_AFTER_HELD: f64 = 1.0;
@@ -26,6 +27,8 @@ pub trait FFContext {
 	fn clean_up(&mut self);
 	fn update(&mut self, dt: f64);
 	fn get_window(&mut self) -> &mut Window;
+	fn on_click(&mut self, position: Vec2) {}
+	fn on_release(&mut self, position: Vec2) {}
 }
 
 pub struct BuddyContext {
@@ -46,6 +49,10 @@ pub struct BuddyContext {
 	pub easing_t: f64,
 	pub wander_timer: f64,
 	pub window: Window,
+	pub dir_vec: Vec2,
+	pub configured_behavior: String,
+	pub speed: f64,
+	pub internal_pos: Vec2,
 }
 
 impl BuddyContext {
@@ -57,6 +64,7 @@ impl BuddyContext {
 
 		let renderer = BuddyRenderer::new(buddy.clone(), &mut window);
 		let window_size = Self::get_window_size(&renderer);
+		tracing::info!("Window size: {:?}", window_size);
 		let mut b_ref = buddy.borrow_mut();
 
 		window
@@ -67,9 +75,8 @@ impl BuddyContext {
 		let binding = b_ref.dialog(DialogType::Chatter);
 		let sample = binding.choose(&mut rand::thread_rng());
 		let chatter_array = Some(vec![sample.unwrap().deref().to_owned()]);
-
 		drop(b_ref);
-
+		let config = super::super::config_manager::CONFIG.try_lock().unwrap();
 		let mut result = Self {
 			buddy: buddy.clone(),
 			renderer,
@@ -88,11 +95,25 @@ impl BuddyContext {
 			easing_t: 0.0,
 			wander_timer: WANDER_TIMER,
 			window,
+			dir_vec: match config.buddy_settings.buddy_behavior.as_str(){
+				"dvd" => {
+					let mut rng = rand::thread_rng();
+					let x = rng.gen_range(-1.0..1.0);
+					let y = rng.gen_range(-1.0..1.0);
+					Vec2::new(x, y).normalize()
+				},
+				"normal" | _ => Vec2::zero(),
+			},
+			configured_behavior: config.buddy_settings.buddy_behavior.clone(),
+			speed: config.buddy_settings.speed.clone(),
+			internal_pos: Vec2::zero(),
 		};
 
 		let random_position = Self::random_pos_current_monitor(&result);
+		tracing::info!("random position: {:?}", random_position);
 		result.window.window_handle.set_pos(random_position.x as i32, random_position.y as i32);
-		
+		result.internal_pos = random_position;
+		drop(config);
 		result
 	}
 
@@ -130,13 +151,13 @@ impl BuddyContext {
 	}
 	
 	fn random_pos_current_monitor(&self) -> Vec2 {
-		let (monitor, x, y, w, h) = Self::get_current_monitor(self.window.window_handle.window_ptr());
+		let (monitor, x, y, w, h, _mx, _my, _mw, _mh) = Self::get_current_monitor(self.window.window_handle.window_ptr());
 		let rand_x = x + (w as f64 * rand::random::<f64>()) as i32;
 		let rand_y = y + (h as f64 * rand::random::<f64>()) as i32;
 		Vec2::new_i(rand_x, rand_y)
 	}
 	
-	fn get_current_monitor(window: *mut glfw::ffi::GLFWwindow) -> (*mut GLFWmonitor, i32, i32, i32, i32) {
+	fn get_current_monitor(window: *mut glfw::ffi::GLFWwindow) -> (*mut GLFWmonitor, i32, i32, i32, i32, i32, i32, i32, i32) {
 		let mut monitor_count: std::ffi::c_int = 0;
 		
 		let mut wx: std::ffi::c_int = 0;
@@ -152,7 +173,7 @@ impl BuddyContext {
 		let mut best_overlap: std::ffi::c_int;
 		
 		let mut mode: *const GLFWvidmode;
-		let mut best_monitor: (*mut GLFWmonitor, i32, i32, i32, i32) = (std::ptr::null_mut(), 0, 0, 0, 0);
+		let mut best_monitor: (*mut GLFWmonitor, i32, i32, i32, i32, i32, i32, i32, i32) = (std::ptr::null_mut(), 0, 0, 0, 0, 0, 0, 0, 0);
 		let mut monitors: *mut *mut GLFWmonitor;
 		best_overlap = 0;
 		unsafe {
@@ -166,12 +187,12 @@ impl BuddyContext {
 				mode = glfw::ffi::glfwGetVideoMode(monitor);
 				glfw::ffi::glfwGetMonitorPos(monitor, &mut mx, &mut my);
 				mw = mode.as_ref().unwrap().width;
-				wh = mode.as_ref().unwrap().height;
+				mh = mode.as_ref().unwrap().height;
 				
 				overlap =
 					(0.max((wx+ww).min(mx+mw)-wx.max(mx))) * 
 						(0.max((wy+wh).min(my+mh) - wy.max(my)));
-				
+
 				if best_overlap < overlap {
 					best_overlap = overlap;
 					best_monitor.0 = monitor;
@@ -179,6 +200,10 @@ impl BuddyContext {
 					best_monitor.2 = wy;
 					best_monitor.3 = ww;
 					best_monitor.4 = wh;
+					best_monitor.5 = mx;
+					best_monitor.6 = my;
+					best_monitor.7 = mw;
+					best_monitor.8 = mh;
 				}
 			}
 		}
@@ -293,6 +318,58 @@ impl BuddyContext {
 		}
 	}
 
+	fn update_dvd(&mut self, dt: f64) {
+		// tracing::info!("FRAME START");
+		// tracing::info!("init pos: {:?}", self.internal_pos);
+		// tracing::info!("dir: {:?}", self.dir_vec);
+
+		let cursor_pos = self.window.window_handle.get_cursor_pos();
+		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
+		
+		if self.held {
+			tracing::info!("cursor pos: {:?}", cursor_pos);
+			tracing::info!("held at: {:?}", self.held_at);
+			tracing::info!("should set to: {:?}", self.internal_pos - self.held_at + self.internal_pos);
+			self.internal_pos = self.internal_pos - self.held_at + cursor_pos;
+			self.window
+				.window_handle
+				.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
+			return;	
+		}
+		let (_,_,_,w,h,_,_,mw,mh) = Self::get_current_monitor(self.window.window_handle.window_ptr());
+		// tracing::info!("w: {}, h: {}", w, h);
+		
+		self.internal_pos += self.dir_vec * self.speed * dt;
+		// tracing::info!("new pos: {:?}", self.internal_pos);
+		// tracing::info!("current window pos: {:?}", self.window.window_handle.get_pos());
+		self.window.window_handle.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
+		// tracing::info!("new window pos: {:?}", self.window.window_handle.get_pos());
+		// tracing::info!("FRAME END");
+
+		// tracing::info!("internal pos: {:?}, w: {}, h: {}", self.internal_pos, w, h);
+		
+		if self.internal_pos.x <= 0.0 {
+			tracing::info!("hit left wall");
+			self.dir_vec.x = -self.dir_vec.x;
+			self.internal_pos.x = 0.0;
+		}
+		if self.internal_pos.y <= 0.0 {
+			tracing::info!("hit top wall");
+			self.dir_vec.y = -self.dir_vec.y;
+			self.internal_pos.y = 0.0;
+		}
+		if self.internal_pos.x + w as f64 >= mw as f64 {
+			tracing::info!("hit right wall");
+			self.dir_vec.x = -self.dir_vec.x;
+			self.internal_pos.x = (mw - w) as f64;
+		}
+		if self.internal_pos.y + h as f64 >= mh as f64 {
+			tracing::info!("hit bottom wall");
+			self.dir_vec.y = -self.dir_vec.y;
+			self.internal_pos.y = (mh - h) as f64;
+		}
+	}
+	
 	pub fn say(&mut self, text_groups: Vec<Vec<String>>) {
 		let buddy = self.buddy.borrow();
 		let flattened_texts: Vec<String> = text_groups.into_iter().flatten().collect();
@@ -357,26 +434,34 @@ impl FFContext for BuddyContext {
 
 	fn update(&mut self, dt: f64) {
 		// tracing::info!("current behavior: {:?}", self.behavior());
-		self.chatter_timer -= dt;
-		if self.chatter_timer <= 0.0 {
-			self.chatter_timer += CHATTER_TIMER;
-
-			if let Some(ref chatter_array) = self.chatter_array {
-				if let Some(chatter) = chatter_array.get(self.chatter_index as usize) {
-					self.say(vec![chatter.clone()]);
-				}
+		
+		match self.configured_behavior.as_str() {
+			"dvd" => {
+				self.update_dvd(dt);
 			}
-			self.chatter_index += 1;
+			"normal" | _ => {
+				self.chatter_timer -= dt;
+				if self.chatter_timer <= 0.0 {
+					self.chatter_timer += CHATTER_TIMER;
 
-			if let Some(ref chatter_array) = self.chatter_array {
-				if self.chatter_index >= chatter_array.len() as i32 {
-					self.chatter_array = None;
-					self.chatter_index = 0;
+					if let Some(ref chatter_array) = self.chatter_array {
+						if let Some(chatter) = chatter_array.get(self.chatter_index as usize) {
+							self.say(vec![chatter.clone()]);
+						}
+					}
+					self.chatter_index += 1;
+
+					if let Some(ref chatter_array) = self.chatter_array {
+						if self.chatter_index >= chatter_array.len() as i32 {
+							self.chatter_array = None;
+							self.chatter_index = 0;
+						}
+					}
 				}
+				self.update_pos(dt);
 			}
 		}
-
-		self.update_pos(dt);
+		
 		self.render(dt);
 
 		self.window.window_handle.swap_buffers();
@@ -384,6 +469,15 @@ impl FFContext for BuddyContext {
 
 	fn get_window(&mut self) -> &mut Window {
 		&mut self.window
+	}
+
+	fn on_click(&mut self, position: Vec2) {
+		self.held = true;
+		self.held_at = position;
+	}
+	
+	fn on_release(&mut self, _: Vec2) {
+		self.held = false;
 	}
 }
 

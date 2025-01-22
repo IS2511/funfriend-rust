@@ -19,6 +19,7 @@ use crate::buddy::buddies::funfriend::{make_buddy_context, Buddy};
 use crate::buddy::context::FFContext;
 use buddy::buddies::funfriend::make_buddy;
 use window::Window;
+use crate::vec2::Vec2;
 
 pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -117,20 +118,16 @@ impl Funfriend {
 	// 		}
 	// 	}
 	// }
-
+	
 	fn run(&mut self) {
 		logger::init();
 		config_manager::read();
 		let mut last_t = 0.0;
+		let config = config_manager::CONFIG.try_lock().unwrap();
 		let buddy = make_buddy(
-			config_manager::CONFIG
-				.lock()
-				.unwrap()
-				.buddy_settings
-				.buddy_type
-				.as_str()
-				.clone(),
+			config.buddy_settings.buddy_type.as_str(),
 		);
+		drop(config);
 		self.add_context(make_buddy_context(buddy.clone()));
 		self.set_buddy(buddy);
 		while !self.contexts.is_empty() {
@@ -142,14 +139,36 @@ impl Funfriend {
 				last_t = context.get_window().glfw.get_time();
 				let flushed_events = glfw::flush_messages(&context.get_window().events);
 				let mut should_close = false;
+				let mut was_clicked = false;
+				let mut was_released = false;
 				for (_, event) in flushed_events {
 					match event {
 						WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
 							tracing::warn!("should close");
 							should_close = true;
+						},
+						WindowEvent::MouseButton(_, Action::Press, _) => {
+							tracing::warn!("was clicked");
+							was_clicked = true;
+						},
+						WindowEvent::MouseButton(_, Action::Release, _) => {
+							tracing::warn!("was released");
+							was_released = true;
 						}
 						_ => (),
 					}
+				}
+				if was_clicked {
+					let cursor_pos = context.get_window().window_handle.get_cursor_pos();
+					let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
+
+					context.on_click(cursor_pos);
+				}
+				if was_released {
+					let cursor_pos = context.get_window().window_handle.get_cursor_pos();
+					let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
+
+					context.on_release(cursor_pos);
 				}
 				if should_close {
 					context.get_window().window_handle.set_should_close(true);
@@ -161,8 +180,9 @@ impl Funfriend {
 				} else {
 					// tracing::info!("running update");
 					context.update(dt);
-					context.get_window().window_handle.swap_buffers();
-					context.get_window().glfw.wait_events_timeout(1.0 / 120.0);
+					let window = context.get_window();
+					window.window_handle.swap_buffers();
+					window.glfw.wait_events_timeout(1.0 / 120.0);
 					true
 				}
 			});

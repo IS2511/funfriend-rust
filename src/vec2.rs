@@ -1,7 +1,7 @@
 use rand::Rng as _;
 use serde::{Deserialize, Serialize};
 use std::f32::consts::TAU;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Vec2 {
@@ -172,6 +172,13 @@ impl Add<f64> for Vec2 {
 	type Output = Vec2;
 	fn add(self, other: f64) -> Self::Output {
 		Self::new(self.x + other, self.y + other)
+	}
+}
+
+impl AddAssign for Vec2 {
+	fn add_assign(&mut self, rhs: Self) {
+		self.x += rhs.x;
+		self.y += rhs.y;
 	}
 }
 

@@ -5,9 +5,8 @@ use std::ops::Deref as _;
 use super::APP_NAME;
 const CONFIG_FILENAME: &str = "cfg.json";
 
-// tried to make this not arc mutex, it does not like when i do that. fix later, or dont i dont care so long as it functions and does its job.
 lazy_static::lazy_static! {
-	pub static ref CONFIG: std::sync::Arc<std::sync::Mutex<Config>> = Default::default();
+	pub static ref CONFIG: std::sync::Arc<std::sync::Mutex<Config>> = Default::default(); 
 }
 
 fn get_config_dir() -> std::path::PathBuf {
@@ -25,11 +24,6 @@ fn get_config_dir() -> std::path::PathBuf {
 	}
 }
 
-/*
- * comment to stop IDE from complaining about Default not being implemented. It is implemented.
- * I don't know why it is doing this.
-*/
-//noinspection RsDerivableTraitMembers
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Config {
 	pub window_settings: WindowSettings,
@@ -47,23 +41,33 @@ pub struct SoundSettings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BuddySettings {
 	pub buddy_type: String,
+	pub buddy_behavior: String,
+	pub speed: f64,
 }
 
 pub fn read() {
 	let mut config = CONFIG.lock().unwrap();
-	*config = if get_config_dir().join(CONFIG_FILENAME).exists() {
+
+	let new_conf = if get_config_dir().join(CONFIG_FILENAME).exists() {
 		let mut file = std::fs::File::open(get_config_dir().join(CONFIG_FILENAME))
 			.expect("Failed to open config file");
 		let mut contents = String::new();
 		file.read_to_string(&mut contents)
 			.expect("Failed to read config file");
-		serde_json::from_str(&contents).expect("Failed to parse config file")
+		let result = serde_json::from_str(&contents);
+		if result.is_err() {
+			Config::default()
+		} else {
+			result.unwrap()
+		}
 	} else {
 		Config::default()
-	}
+	};
+	*config = new_conf;
+	drop(config);
 }
 pub fn write() {
-	let json = serde_json::to_string_pretty(&CONFIG.lock().unwrap().deref()).unwrap();
+	let json = serde_json::to_string_pretty(&CONFIG.try_lock().unwrap().deref()).unwrap();
 	let path = get_config_dir();
 	if !path.exists() {
 		std::fs::create_dir(path.clone()).unwrap();
@@ -72,10 +76,11 @@ pub fn write() {
 	file.write_all(json.as_bytes())
 		.expect("Failed to write configuration.");
 }
+
 impl Default for WindowSettings {
 	fn default() -> Self {
 		Self {
-			size: super::vec2::Vec2::new(512.0, 512.0),
+			size: super::vec2::Vec2::new(75.0, 75.0),
 		}
 	}
 }
@@ -88,6 +93,8 @@ impl Default for BuddySettings {
 	fn default() -> Self {
 		Self {
 			buddy_type: "funfriend".to_string(),
+			buddy_behavior: "normal".to_string(),
+			speed: 50.0,
 		}
 	}
 }
