@@ -64,7 +64,7 @@ impl TextRenderer {
 		}
 	}
 
-	pub fn init_textures(font: &str) -> GLuint {
+	fn init_textures(font: &str) -> GLuint {
 		let texture_data = load_texture(
 			&format!("{}.png", font),
 			Some([

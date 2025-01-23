@@ -39,7 +39,7 @@ impl ChatterContext {
 			"!!__FUNFRIEND__!! > CHATTER",
 		);
 
-		window.window_handle.set_pos(
+		window.handle.set_pos(
 			(position.x - window_size.x / 2.0) as i32,
 			(position.y - window_size.y / 2.0) as i32,
 		);
@@ -54,12 +54,12 @@ impl ChatterContext {
 
 		let mut parent_relative_pos = Vec2::zero();
 		if let Some(ref p) = parent {
-			let parent_window_pos = Vec2::new_t(p.window.window_handle.get_pos());
+			let parent_window_pos = Vec2::new_t(p.window.handle.get_pos());
 			let parent_window_size = Vec2::new(parent_window_pos.x, parent_window_pos.y);
 			parent_relative_pos = position - (parent_window_size / 2.0);
 		}
 
-		window.window_handle.make_current();
+		window.handle.make_current();
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 
 		unsafe {
@@ -79,19 +79,19 @@ impl ChatterContext {
 
 	pub fn update_pos(&mut self) {
 		if let Some(ref p) = self.parent {
-			let parent_window_pos = Vec2::new_t(p.window.window_handle.get_pos());
+			let parent_window_pos = Vec2::new_t(p.window.handle.get_pos());
 			let parent_window_size = Vec2::new(parent_window_pos.x, parent_window_pos.y);
 			let new_pos =
 				(parent_window_pos + parent_window_size / 2.0 + self.parent_relative_pos.x
 					- self.window_size / 2.0);
 			self.window
-				.window_handle
+				.handle
 				.set_pos(new_pos.x as i32, new_pos.y as i32);
 		}
 	}
 
 	pub fn render(&mut self, dt: f64) {
-		self.window.window_handle.make_current();
+		self.window.handle.make_current();
 		gl::load_with(|s| self.window.glfw.get_proc_address_raw(s) as *const _);
 		unsafe {
 			gl::ClearColor(0.0, 0.0, 0.0, 1.0);
@@ -111,7 +111,7 @@ impl FFContext for ChatterContext {
 		tracing::info!("text timer: {}", self.timer);
 		self.timer -= dt;
 		if self.timer <= 0.0 {
-			self.window.window_handle.set_should_close(true);
+			self.window.handle.set_should_close(true);
 		}
 		self.update_pos();
 		self.render(dt);
@@ -121,7 +121,7 @@ impl FFContext for ChatterContext {
 	}
 
 	fn should_close(&self) -> bool {
-		self.window.window_handle.should_close()
+		self.window.handle.should_close()
 	}
 
 	fn get_window(&mut self) -> &mut Window {

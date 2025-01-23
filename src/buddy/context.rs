@@ -66,9 +66,9 @@ impl Context {
 		tracing::info!("Window size: {:?}", window_size);
 
 		window
-			.window_handle
+			.handle
 			.set_size(window_size.x as i32, window_size.y as i32);
-		window.window_handle.make_current();
+		window.handle.make_current();
 		// window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 
@@ -112,7 +112,7 @@ impl Context {
 		tracing::info!("random position: {:?}", random_position);
 		result
 			.window
-			.window_handle
+			.handle
 			.set_pos(random_position.x as i32, random_position.y as i32);
 		result.internal_pos = random_position;
 		result.static_pos = random_position;
@@ -155,7 +155,7 @@ impl Context {
 
 	fn random_pos_current_monitor(&self) -> Vec2 {
 		let (monitor, x, y, w, h, _mx, _my, _mw, _mh) =
-			Self::get_current_monitor(self.window.window_handle.window_ptr());
+			Self::get_current_monitor(self.window.handle.window_ptr());
 		let rand_x = x + (w as f64 * rand::random::<f64>()) as i32;
 		let rand_y = y + (h as f64 * rand::random::<f64>()) as i32;
 		Vec2::new_i(rand_x, rand_y)
@@ -217,7 +217,7 @@ impl Context {
 	}
 
 	pub fn render(&mut self, dt: f64) {
-		self.window.window_handle.make_current();
+		self.window.handle.make_current();
 		gl::load_with(|s| self.window.glfw.get_proc_address_raw(s) as *const _);
 		let window_size = Self::get_window_size(&self.renderer);
 		self.renderer
@@ -228,8 +228,8 @@ impl Context {
 		self.easing_t = 0.0;
 		self.easing_dur = dur;
 		self.easing_from = Vec2::new(
-			self.window.window_handle.get_pos().0 as f64,
-			self.window.window_handle.get_pos().1 as f64,
+			self.window.handle.get_pos().0 as f64,
+			self.window.handle.get_pos().1 as f64,
 		);
 		self.easing_to = pos;
 
@@ -247,7 +247,7 @@ impl Context {
 			let a = ease::in_out_sine(self.easing_t / self.easing_dur);
 			let new_position = self.easing_from * (1.0 - a) + self.easing_to * a;
 			self.window
-				.window_handle
+				.handle
 				.set_pos(new_position.x as i32, new_position.y as i32);
 
 			self.wander_timer = WANDER_TIMER;
@@ -262,20 +262,20 @@ impl Context {
 				}
 				Behavior::Follow => {
 					if !self.moving() {
-						let cursor_pos = self.window.window_handle.get_cursor_pos();
-						let mut x_target = self.window.window_handle.get_pos().0 as f64;
-						let mut y_target = self.window.window_handle.get_pos().1 as f64;
+						let cursor_pos = self.window.handle.get_cursor_pos();
+						let mut x_target = self.window.handle.get_pos().0 as f64;
+						let mut y_target = self.window.handle.get_pos().1 as f64;
 
 						let x_dist = cursor_pos.0;
 						let y_dist = cursor_pos.1;
 
 						if x_dist.abs() > FOLLOW_DIST as f64 {
-							x_target = self.window.window_handle.get_pos().0 as f64 + x_dist
+							x_target = self.window.handle.get_pos().0 as f64 + x_dist
 								- FOLLOW_DIST as f64 * x_dist.signum();
 						}
 
 						if y_dist.abs() > FOLLOW_DIST as f64 {
-							y_target = self.window.window_handle.get_pos().1 as f64 + y_dist
+							y_target = self.window.handle.get_pos().1 as f64 + y_dist
 								- FOLLOW_DIST as f64 * y_dist.signum();
 						}
 
@@ -288,12 +288,12 @@ impl Context {
 	}
 
 	pub fn update_pos(&mut self, dt: f64) {
-		let cursor_pos = self.window.window_handle.get_cursor_pos();
+		let cursor_pos = self.window.handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 		if self.held {
 			self.static_pos = self.static_pos - self.held_at + cursor_pos;
 			self.window
-				.window_handle
+				.handle
 				.set_pos(self.static_pos.x as i32, self.static_pos.y as i32);
 		} else {
 			self.held_timer -= dt;
@@ -330,7 +330,7 @@ impl Context {
 		// tracing::info!("init pos: {:?}", self.internal_pos);
 		// tracing::info!("dir: {:?}", self.dir_vec);
 
-		let cursor_pos = self.window.window_handle.get_cursor_pos();
+		let cursor_pos = self.window.handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 
 		if self.held {
@@ -342,19 +342,19 @@ impl Context {
 			);
 			self.internal_pos = self.internal_pos - self.held_at + cursor_pos;
 			self.window
-				.window_handle
+				.handle
 				.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
 			return;
 		}
 		let (_, _, _, w, h, _, _, mw, mh) =
-			Self::get_current_monitor(self.window.window_handle.window_ptr());
+			Self::get_current_monitor(self.window.handle.window_ptr());
 		// tracing::info!("w: {}, h: {}", w, h);
 
 		self.internal_pos += self.dir_vec * self.speed * dt;
 		// tracing::info!("new pos: {:?}", self.internal_pos);
 		// tracing::info!("current window pos: {:?}", self.window.window_handle.get_pos());
 		self.window
-			.window_handle
+			.handle
 			.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
 		// tracing::info!("new window pos: {:?}", self.window.window_handle.get_pos());
 		// tracing::info!("FRAME END");
@@ -444,7 +444,7 @@ impl Context {
 
 impl FFContext for Context {
 	fn should_close(&self) -> bool {
-		self.window.window_handle.should_close()
+		self.window.handle.should_close()
 	}
 
 	fn clean_up(&mut self) {
@@ -478,7 +478,7 @@ impl FFContext for Context {
 
 		self.render(dt);
 
-		self.window.window_handle.swap_buffers();
+		self.window.handle.swap_buffers();
 	}
 
 	fn get_window(&mut self) -> &mut Window {
@@ -489,19 +489,19 @@ impl FFContext for Context {
 		self.held = true;
 		self.held_at = position;
 		if self.held_timer <= 0.0 {
-			self.started_holding_at = Vec2::new_t(self.window.window_handle.get_pos());
+			self.started_holding_at = Vec2::new_t(self.window.handle.get_pos());
 		}
 		self.held_timer = STAY_STILL_AFTER_HELD;
 		self.easing_dur = 0.0;
 		self.window
-			.window_handle
+			.handle
 			.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 	}
 
 	fn on_release(&mut self, _: Vec2) {
 		self.held = false;
 		self.window
-			.window_handle
+			.handle
 			.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Arrow)));
 	}
 }

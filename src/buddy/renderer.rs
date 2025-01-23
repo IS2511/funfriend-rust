@@ -16,13 +16,13 @@ use super::{
 };
 
 pub struct Renderer {
-	pub buddy_shader: GLuint,
+	pub body_shader: GLuint,
 	pub bg_shader: GLuint,
 	pub vertex_array: GLuint,
 	pub vertex_buffer: GLuint,
 	pub body: TextureBasket,
 	pub background: Option<SizedTexture>,
-	pub window_size: Vec2,
+	pub resolution: Vec2,
 }
 
 impl Renderer {
@@ -33,7 +33,7 @@ impl Renderer {
 	) -> Self {
 		let buddy = buddy.borrow();
 
-		window.window_handle.make_current();
+		window.handle.make_current();
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 		let (buddy_shader, bg_shader) = Self::init_shaders();
 		let (vertex_array, vertex_buffer) = Self::init_buffers();
@@ -41,18 +41,18 @@ impl Renderer {
 		let background = buddy.background();
 
 		Self {
-			buddy_shader,
+			body_shader: buddy_shader,
 			bg_shader,
 			vertex_array,
 			vertex_buffer,
 			body,
 			background,
-			window_size: config.window.size,
+			resolution: config.window.size,
 		}
 	}
 
 	pub fn funfriend_size(&self) -> (i32, i32) {
-		(self.window_size.x as i32, self.window_size.y as i32)
+		(self.resolution.x as i32, self.resolution.y as i32)
 	}
 
 	fn init_buffers() -> (u32, u32) {
@@ -164,18 +164,18 @@ impl Renderer {
 			}
 
 			gl::BindTexture(gl::TEXTURE_2D, frame.tex);
-			gl::UseProgram(self.buddy_shader);
+			gl::UseProgram(self.body_shader);
 
 			gl::Uniform1i(
 				gl::GetUniformLocation(
-					self.buddy_shader,
+					self.body_shader,
 					CString::new("texture1").unwrap().as_ptr(),
 				),
 				0,
 			);
 			gl::Uniform2f(
 				gl::GetUniformLocation(
-					self.buddy_shader,
+					self.body_shader,
 					CString::new("funfriendSize").unwrap().as_ptr(),
 				),
 				self.funfriend_size().0 as f32,
@@ -183,14 +183,14 @@ impl Renderer {
 			);
 			gl::Uniform2f(
 				gl::GetUniformLocation(
-					self.buddy_shader,
+					self.body_shader,
 					CString::new("resolution").unwrap().as_ptr(),
 				),
 				window_width as f32,
 				window_height as f32,
 			);
 			gl::Uniform1f(
-				gl::GetUniformLocation(self.buddy_shader, CString::new("time").unwrap().as_ptr()),
+				gl::GetUniformLocation(self.body_shader, CString::new("time").unwrap().as_ptr()),
 				window.glfw.get_time() as f32,
 			);
 
