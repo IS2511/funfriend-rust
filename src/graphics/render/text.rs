@@ -1,9 +1,9 @@
 use gl::types::*;
 use std::ffi::CString;
 
-use super::{font_manager::*, glfn, texture::load_texture};
+use super::super::super::{font_manager::*, glfn, texture::load_texture};
 
-pub struct TextRenderer {
+pub struct Text {
 	pub text: String,
 	pub font: String,
 	pub sheet: BMSheet,
@@ -16,10 +16,10 @@ pub struct TextRenderer {
 	pub font_texture: GLuint,
 }
 
-impl TextRenderer {
+impl Text {
 	pub fn new(text: String, font: String, sheet: BMSheet, width: i32, height: i32) -> Self {
-		let nop_frag = std::str::from_utf8(super::NOP_FRAG).unwrap();
-		let nop_vert = std::str::from_utf8(super::NOP_VERT).unwrap();
+		let nop_frag = std::str::from_utf8(crate::NOP_FRAG).unwrap();
+		let nop_vert = std::str::from_utf8(crate::NOP_VERT).unwrap();
 		let shader_program = glfn::shader(nop_frag, nop_vert);
 		let (vertex_array, vertex_buffer) = Self::init_buffers(&text, &sheet, width, height);
 		let font_texture = Self::init_textures(&font);
@@ -37,7 +37,7 @@ impl TextRenderer {
 	}
 
 	//noinspection RsCStringPointer
-	pub fn render(&self, dt: f64) {
+	pub fn render(&self) {
 		unsafe {
 			gl::Enable(gl::BLEND);
 			gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);

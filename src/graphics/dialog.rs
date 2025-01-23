@@ -1,21 +1,23 @@
-use super::super::{
-	font_manager::FontMan,
-	text_renderer::TextRenderer,
-	vec2::Vec2,
-	window::{Window, Windowed},
+use super::{
+	super::{
+		font_manager::FontMan,
+		vec2::Vec2,
+		window::{Window, Windowed},
+	},
+	render,
 };
 use glfw::Context as _;
 
-pub struct Text {
-	renderer: TextRenderer,
-	parent: Option<Box<Text>>,
+pub struct Dialog {
+	text: render::Text,
+	parent: Option<Box<Dialog>>,
 	parent_relative_pos: Vec2,
-	window_size: Vec2,
 	timer: f64,
 	window: Window,
+	window_size: Vec2,
 }
 
-impl Text {
+impl Dialog {
 	pub const DEFAULT_DURATION: f64 = 6.0;
 	const PADDING: f64 = 10.0;
 
@@ -24,7 +26,7 @@ impl Text {
 		font: &str,
 		position: Vec2,
 		duration: f64,
-		parent: Option<Box<Text>>,
+		parent: Option<Box<Dialog>>,
 	) -> Self {
 		let sheet = FontMan::parse_bm(&std::fs::read_to_string(format!("{}.fnt", font)).unwrap());
 
@@ -46,7 +48,7 @@ impl Text {
 			(position.y - window_size.y / 2.0) as i32,
 		);
 
-		let renderer = TextRenderer::new(
+		let renderer = render::Text::new(
 			text.to_string(),
 			font.to_string(),
 			sheet,
@@ -70,7 +72,7 @@ impl Text {
 		}
 
 		Self {
-			renderer,
+			text: renderer,
 			parent,
 			parent_relative_pos,
 			window_size,
@@ -99,7 +101,7 @@ impl Text {
 			gl::ClearColor(0.0, 0.0, 0.0, 1.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);
 		}
-		self.renderer.render(dt);
+		self.text.render();
 	}
 
 	pub fn bump(&mut self) {
@@ -108,7 +110,7 @@ impl Text {
 	}
 }
 
-impl Windowed for Text {
+impl Windowed for Dialog {
 	fn update(&mut self, dt: f64) {
 		tracing::info!("text timer: {}", self.timer);
 		self.timer -= dt;
@@ -120,7 +122,7 @@ impl Windowed for Text {
 	}
 
 	fn clean_up(&mut self) {
-		self.renderer.clean_up();
+		self.text.clean_up();
 	}
 
 	fn should_close(&self) -> bool {

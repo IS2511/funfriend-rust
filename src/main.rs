@@ -9,7 +9,6 @@ mod font_manager;
 mod glfn;
 mod graphics;
 mod logger;
-mod text_renderer;
 mod texture;
 mod vec2;
 mod window;
