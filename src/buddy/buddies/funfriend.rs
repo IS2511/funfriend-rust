@@ -1,9 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::super::{
-	super::texture::{load_texture, SizedTexture, TextureBasket},
-	Buddy, DialogKind, QuickDialogInstantiation as _,
+use super::{
+	super::{
+		super::texture::{load_texture, TextureBasket},
+		Buddy, DialogKind,
+	},
+	QuickDialogInstantiation as _,
 };
 
 mod dialog {

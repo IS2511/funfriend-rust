@@ -1,97 +1,115 @@
-use serde::{Deserialize, Serialize};
-use std::io::{Read, Write as _};
-use std::ops::Deref as _;
+use std::{
+	path::PathBuf,
+	sync::{Arc, Mutex},
+};
 
-use super::APP_NAME;
+use serde::{Deserialize, Serialize};
+
+use super::{vec2::Vec2, APP_NAME};
+
 const CONFIG_FILENAME: &str = "cfg.json";
 
 lazy_static::lazy_static! {
-	pub static ref CONFIG: std::sync::Arc<std::sync::Mutex<Config>> = Default::default();
+	pub static ref CONFIG: Arc<Mutex<Config>> = Default::default();
+}
+
+impl Default for Config {
+	fn default() -> Self {
+		Self {
+			window: Window {
+				size: Vec2::new(75.0, 75.0),
+			},
+			sound: Sound { master_volume: 1.0 },
+			buddy: Buddy {
+				r#type: BuddyType::Funfriend,
+				behavior: Behavior::Normal,
+				speed: 50.0,
+			},
+		}
+	}
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Config {
+	pub window: Window,
+	pub sound: Sound,
+	pub buddy: Buddy,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Window {
+	pub size: Vec2,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Sound {
+	pub master_volume: f32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Buddy {
+	pub r#type: BuddyType,
+	pub behavior: Behavior,
+	pub speed: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum BuddyType {
+	Funfriend,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum Behavior {
+	Normal,
+	Dvd,
+}
+
+pub fn read() -> Config {
+	match std::fs::read_to_string(get_config_dir().join(CONFIG_FILENAME)) {
+		Ok(contents) => match serde_json::from_str(&contents) {
+			Ok(config) => config,
+			Err(err) => {
+				tracing::warn!("failed to parse config file: {err}");
+				Config::default()
+			}
+		},
+		Err(err) => {
+			tracing::warn!("failed to read config file: {err}");
+			Config::default()
+		}
+	}
+}
+
+pub fn write(config: &Config) {
+	let json = serde_json::to_string_pretty(config).expect("failed to serialize config");
+
+	let config_dir = get_config_dir();
+	if !config_dir.exists() {
+		std::fs::create_dir(config_dir.clone()).expect("failed to create config dir");
+	}
+
+	std::fs::write(config_dir.join(CONFIG_FILENAME), json).expect("failed to write config file");
 }
 
 fn get_config_dir() -> std::path::PathBuf {
 	if cfg!(windows) {
-		std::path::PathBuf::from(std::env::var("APPDATA").unwrap()).join(APP_NAME)
+		PathBuf::from(std::env::var("APPDATA").expect("APPDATA env variable undefined"))
+			.join(APP_NAME)
 	} else if cfg!(target_os = "macos") {
-		panic!("fuck you im not making this work on mac lmaoooooooooooooooooo")
+		unimplemented!("fuck you im not making this work on mac lmaoooooooooooooooooo")
 	} else {
 		std::env::var("XDG_CONFIG_HOME")
-			.map(std::path::PathBuf::from)
+			.map(PathBuf::from)
 			.unwrap_or_else(|_| {
-				std::path::PathBuf::from(std::env::var("HOME").unwrap()).join(".config")
+				PathBuf::from(std::env::var("HOME").expect("HOME env variable undefined"))
+					.join(".config")
 			})
 			.join(APP_NAME)
-	}
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct Config {
-	pub window_settings: WindowSettings,
-	pub sound_settings: SoundSettings,
-	pub buddy_settings: BuddySettings,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct WindowSettings {
-	pub size: super::vec2::Vec2,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SoundSettings {
-	pub master_volume: f32,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BuddySettings {
-	pub buddy_type: String,
-	pub buddy_behavior: String,
-	pub speed: f64,
-}
-
-pub fn read() -> Config {
-	if get_config_dir().join(CONFIG_FILENAME).exists() {
-		let mut file = std::fs::File::open(get_config_dir().join(CONFIG_FILENAME))
-			.expect("Failed to open config file");
-		let mut contents = String::new();
-		file.read_to_string(&mut contents)
-			.expect("Failed to read config file");
-		let result = serde_json::from_str(&contents);
-		if result.is_err() {
-			Config::default()
-		} else {
-			result.unwrap()
-		}
-	} else {
-		Config::default()
-	}
-}
-
-pub fn write() {
-	let json = serde_json::to_string_pretty(&CONFIG.try_lock().unwrap().deref()).unwrap();
-	let path = get_config_dir();
-	if !path.exists() {
-		std::fs::create_dir(path.clone()).unwrap();
-	}
-	let mut file = std::fs::File::create(path.join(CONFIG_FILENAME)).unwrap();
-	file.write_all(json.as_bytes())
-		.expect("Failed to write configuration.");
-}
-
-impl Default for WindowSettings {
-	fn default() -> Self {
-		Self {
-			size: super::vec2::Vec2::new(75.0, 75.0),
-		}
-	}
-}
-impl Default for SoundSettings {
-	fn default() -> Self {
-		Self { master_volume: 1.0 }
-	}
-}
-impl Default for BuddySettings {
-	fn default() -> Self {
-		Self {
-			buddy_type: "funfriend".to_string(),
-			buddy_behavior: "normal".to_string(),
-			speed: 50.0,
-		}
 	}
 }

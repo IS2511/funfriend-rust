@@ -1,21 +1,20 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use glfw::ffi::{GLFWmonitor, GLFWvidmode};
+use glfw::Context as _;
+use rand::prelude::SliceRandom;
+use rand::Rng as _;
+
 use super::{
 	super::{
-		buddy::{renderer::BuddyRenderer, DialogKind},
-		ease,
+		buddy::{self, DialogKind},
+		config, ease,
 		vec2::Vec2,
 		window::Window,
 	},
 	Buddy,
 };
-use glfw::ffi::{GLFWmonitor, GLFWvidmode};
-use glfw::Context as _;
-use rand::prelude::SliceRandom;
-use rand::Rng as _;
-use std::cell::RefCell;
-use std::ops::{AddAssign, Deref, DerefMut};
-use std::rc::Rc;
-use std::sync::Mutex;
-use winit::raw_window_handle::HasWindowHandle;
 
 const CHATTER_TIMER: f64 = 3.0;
 const STAY_STILL_AFTER_HELD: f64 = 1.0;
@@ -31,10 +30,10 @@ pub trait FFContext {
 	fn on_release(&mut self, position: Vec2) {}
 }
 
-pub struct BuddyContext {
+pub struct Context {
 	pub buddy: Rc<RefCell<dyn Buddy>>,
 	pub owned_contexts: Vec<Rc<RefCell<dyn FFContext>>>,
-	pub renderer: BuddyRenderer,
+	pub renderer: buddy::Renderer,
 	pub chatter_timer: f64,
 	pub chatter_index: i32,
 	pub chatter_array: Option<Vec<String>>,
@@ -51,22 +50,20 @@ pub struct BuddyContext {
 	pub wander_timer: f64,
 	pub window: Window,
 	pub dir_vec: Vec2,
-	pub configured_behavior: String,
+	pub configured_behavior: config::Behavior,
 	pub speed: f64,
 	pub internal_pos: Vec2,
 }
 
-impl BuddyContext {
-	pub fn new(buddy: Rc<RefCell<dyn Buddy>>) -> Self {
-		let mut b_ref = buddy.borrow_mut();
-		let name = format!("!!__{}__!!", b_ref.name());
-		drop(b_ref);
+impl Context {
+	pub fn new(config: &config::Config, buddy: Rc<RefCell<dyn Buddy>>) -> Self {
+		let name = format!("!!__{}__!!", buddy.borrow().name());
+
 		let mut window = Window::new(512, 512, name.as_str());
 
-		let renderer = BuddyRenderer::new(buddy.clone(), &mut window);
+		let renderer = buddy::Renderer::new(buddy.clone(), &mut window);
 		let window_size = Self::get_window_size(&renderer);
 		tracing::info!("Window size: {:?}", window_size);
-		let mut b_ref = buddy.borrow_mut();
 
 		window
 			.window_handle
@@ -74,11 +71,10 @@ impl BuddyContext {
 		window.window_handle.make_current();
 		// window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
-		let binding = b_ref.dialog(DialogKind::Chatter);
-		let sample = binding.choose(&mut rand::thread_rng());
-		let chatter_array = Some(sample.unwrap().deref().to_owned());
-		drop(b_ref);
-		let config = super::super::config::CONFIG.try_lock().unwrap();
+
+		let binding = buddy.borrow().dialog(DialogKind::Chatter);
+		let chatter_array = binding.choose(&mut rand::thread_rng()).cloned();
+
 		let mut result = Self {
 			buddy: buddy.clone(),
 			owned_contexts: Vec::new(),
@@ -98,17 +94,17 @@ impl BuddyContext {
 			easing_t: 0.0,
 			wander_timer: WANDER_TIMER,
 			window,
-			dir_vec: match config.buddy_settings.buddy_behavior.as_str() {
-				"dvd" => {
+			dir_vec: match config.buddy.behavior {
+				config::Behavior::Normal => Vec2::zero(),
+				config::Behavior::Dvd => {
 					let mut rng = rand::thread_rng();
 					let x = rng.gen_range(-1.0..1.0);
 					let y = rng.gen_range(-1.0..1.0);
 					Vec2::new(x, y).normalize()
 				}
-				"normal" | _ => Vec2::zero(),
 			},
-			configured_behavior: config.buddy_settings.buddy_behavior.clone(),
-			speed: config.buddy_settings.speed.clone(),
+			configured_behavior: config.buddy.behavior.clone(),
+			speed: config.buddy.speed.clone(),
 			internal_pos: Vec2::zero(),
 		};
 
@@ -128,7 +124,7 @@ impl BuddyContext {
 	// 	let monitor = self.get_primary_monitor();
 	//
 	// }
-	fn get_window_size(renderer: &BuddyRenderer) -> Vec2 {
+	fn get_window_size(renderer: &buddy::Renderer) -> Vec2 {
 		let size = renderer.funfriend_size();
 		Vec2::new_i(
 			(size.0 as f64 * 1.3).floor() as i32,
@@ -446,7 +442,7 @@ impl BuddyContext {
 	}
 }
 
-impl FFContext for BuddyContext {
+impl FFContext for Context {
 	fn should_close(&self) -> bool {
 		self.window.window_handle.should_close()
 	}
@@ -458,11 +454,11 @@ impl FFContext for BuddyContext {
 	fn update(&mut self, dt: f64) {
 		// tracing::info!("current behavior: {:?}", self.behavior());
 		tracing::info!("expected behavior: {:?}", self.behavior());
-		match self.configured_behavior.as_str() {
-			"dvd" => {
+		match self.configured_behavior {
+			config::Behavior::Dvd => {
 				self.update_dvd(dt);
 			}
-			"normal" | _ => {
+			config::Behavior::Normal => {
 				self.chatter_timer -= dt;
 				if self.chatter_timer <= 0.0 {
 					tracing::info!("allowed to speak");

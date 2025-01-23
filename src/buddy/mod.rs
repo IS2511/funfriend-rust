@@ -1,13 +1,17 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::texture::{SizedTexture, TextureBasket};
+use super::{
+	config,
+	texture::{SizedTexture, TextureBasket},
+};
 
 pub mod buddies;
 pub mod chatter;
 pub mod context;
 pub mod renderer;
 
-use context::BuddyContext;
+pub use context::Context;
+pub use renderer::Renderer;
 
 pub trait Buddy {
 	fn name(&self) -> &str;
@@ -27,25 +31,15 @@ pub enum DialogKind {
 	Touched,
 }
 
-pub fn make_context(buddy: Rc<RefCell<dyn Buddy>>) -> Rc<RefCell<dyn context::FFContext>> {
-	Rc::new(RefCell::new(BuddyContext::new(buddy)))
+pub fn make_context(
+	config: &config::Config,
+	buddy: Rc<RefCell<dyn Buddy>>,
+) -> Rc<RefCell<dyn context::FFContext>> {
+	Rc::new(RefCell::new(Context::new(config, buddy)))
 }
 
-pub fn make_buddy(name: &str) -> Rc<RefCell<dyn Buddy>> {
-	match name {
-		"funfriend" => Rc::new(RefCell::new(buddies::Funfriend)),
-		_ => Rc::new(RefCell::new(buddies::Funfriend)),
-	}
-}
-
-pub trait QuickDialogInstantiation {
-	fn cloned(&self) -> Vec<Vec<String>>;
-}
-
-impl QuickDialogInstantiation for &'static [&'static [&'static str]] {
-	fn cloned(&self) -> Vec<Vec<String>> {
-		self.iter()
-			.map(|d| d.iter().map(|s| s.to_string()).collect())
-			.collect()
+pub fn make_buddy(r#type: config::BuddyType) -> Rc<RefCell<dyn Buddy>> {
+	match r#type {
+		config::BuddyType::Funfriend => Rc::new(RefCell::new(buddies::Funfriend)),
 	}
 }

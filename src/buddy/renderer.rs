@@ -14,7 +14,7 @@ use super::{
 	Buddy,
 };
 
-pub struct BuddyRenderer {
+pub struct Renderer {
 	pub buddy_shader: GLuint,
 	pub bg_shader: GLuint,
 	pub vertex_array: GLuint,
@@ -23,7 +23,7 @@ pub struct BuddyRenderer {
 	pub background: Option<SizedTexture>,
 }
 
-impl BuddyRenderer {
+impl Renderer {
 	pub fn new(buddy: Rc<RefCell<dyn Buddy>>, window: &mut Window) -> Self {
 		let buddy = buddy.borrow();
 
@@ -46,11 +46,8 @@ impl BuddyRenderer {
 
 	pub fn funfriend_size(&self) -> (i32, i32) {
 		let config = config::CONFIG.lock().unwrap();
-		if config.window_settings.size != super::super::vec2::Vec2::zero() {
-			(
-				config.window_settings.size.x as i32,
-				config.window_settings.size.y as i32,
-			)
+		if config.window.size != super::super::vec2::Vec2::zero() {
+			(config.window.size.x as i32, config.window.size.y as i32)
 		} else {
 			(75, 75)
 		}

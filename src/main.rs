@@ -120,8 +120,8 @@ impl App {
 		logger::init();
 		let config = config::read();
 
-		let buddy = buddy::make_buddy(&config.buddy_settings.buddy_type);
-		self.add_context(buddy::make_context(buddy.clone()));
+		let buddy = buddy::make_buddy(config.buddy.r#type);
+		self.add_context(buddy::make_context(&config, buddy.clone()));
 		self.set_buddy(buddy);
 
 		let mut last_t = 0.0;
@@ -183,7 +183,7 @@ impl App {
 			});
 		}
 
-		config::write();
+		config::write(&config);
 	}
 }
 
