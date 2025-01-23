@@ -61,7 +61,7 @@ impl Context {
 
 		let mut window = Window::new(512, 512, name.as_str());
 
-		let renderer = buddy::Renderer::new(buddy.clone(), &mut window);
+		let renderer = buddy::Renderer::new(config, buddy.clone(), &mut window);
 		let window_size = Self::get_window_size(&renderer);
 		tracing::info!("Window size: {:?}", window_size);
 

@@ -1,17 +1,10 @@
-use std::{
-	path::PathBuf,
-	sync::{Arc, Mutex},
-};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
 use super::{vec2::Vec2, APP_NAME};
 
 const CONFIG_FILENAME: &str = "cfg.json";
-
-lazy_static::lazy_static! {
-	pub static ref CONFIG: Arc<Mutex<Config>> = Default::default();
-}
 
 impl Default for Config {
 	fn default() -> Self {

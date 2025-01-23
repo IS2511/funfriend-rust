@@ -9,6 +9,7 @@ use super::{
 	super::{
 		config,
 		texture::{SizedTexture, TextureBasket},
+		vec2::Vec2,
 		Window,
 	},
 	Buddy,
@@ -21,10 +22,15 @@ pub struct Renderer {
 	pub vertex_buffer: GLuint,
 	pub body: TextureBasket,
 	pub background: Option<SizedTexture>,
+	pub window_size: Vec2,
 }
 
 impl Renderer {
-	pub fn new(buddy: Rc<RefCell<dyn Buddy>>, window: &mut Window) -> Self {
+	pub fn new(
+		config: &config::Config,
+		buddy: Rc<RefCell<dyn Buddy>>,
+		window: &mut Window,
+	) -> Self {
 		let buddy = buddy.borrow();
 
 		window.window_handle.make_current();
@@ -41,16 +47,12 @@ impl Renderer {
 			vertex_buffer,
 			body,
 			background,
+			window_size: config.window.size,
 		}
 	}
 
 	pub fn funfriend_size(&self) -> (i32, i32) {
-		let config = config::CONFIG.lock().unwrap();
-		if config.window.size != super::super::vec2::Vec2::zero() {
-			(config.window.size.x as i32, config.window.size.y as i32)
-		} else {
-			(75, 75)
-		}
+		(self.window_size.x as i32, self.window_size.y as i32)
 	}
 
 	fn init_buffers() -> (u32, u32) {
