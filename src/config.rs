@@ -6,7 +6,7 @@ use super::APP_NAME;
 const CONFIG_FILENAME: &str = "cfg.json";
 
 lazy_static::lazy_static! {
-	pub static ref CONFIG: std::sync::Arc<std::sync::Mutex<Config>> = Default::default(); 
+	pub static ref CONFIG: std::sync::Arc<std::sync::Mutex<Config>> = Default::default();
 }
 
 fn get_config_dir() -> std::path::PathBuf {
@@ -45,10 +45,8 @@ pub struct BuddySettings {
 	pub speed: f64,
 }
 
-pub fn read() {
-	let mut config = CONFIG.lock().unwrap();
-
-	let new_conf = if get_config_dir().join(CONFIG_FILENAME).exists() {
+pub fn read() -> Config {
+	if get_config_dir().join(CONFIG_FILENAME).exists() {
 		let mut file = std::fs::File::open(get_config_dir().join(CONFIG_FILENAME))
 			.expect("Failed to open config file");
 		let mut contents = String::new();
@@ -62,10 +60,9 @@ pub fn read() {
 		}
 	} else {
 		Config::default()
-	};
-	*config = new_conf;
-	drop(config);
+	}
 }
+
 pub fn write() {
 	let json = serde_json::to_string_pretty(&CONFIG.try_lock().unwrap().deref()).unwrap();
 	let path = get_config_dir();

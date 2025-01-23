@@ -1,11 +1,9 @@
 use glfw::{Action, Context, Key, WindowEvent};
 use std::cell::RefCell;
-use std::ops::Deref;
 use std::rc::Rc;
-use std::sync::Mutex;
 
 mod buddy;
-mod config_manager;
+mod config;
 mod ease;
 mod font_manager;
 mod glfn;
@@ -15,11 +13,10 @@ mod texture;
 mod vec2;
 mod window;
 
-use crate::buddy::buddies::funfriend::{make_buddy_context, Buddy};
-use crate::buddy::context::FFContext;
-use buddy::buddies::funfriend::make_buddy;
+use buddy::buddies::funfriend::{make_buddy, make_buddy_context, Buddy};
+use buddy::context::FFContext;
+use vec2::Vec2;
 use window::Window;
-use crate::vec2::Vec2;
 
 pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -118,24 +115,22 @@ impl Funfriend {
 	// 		}
 	// 	}
 	// }
-	
+
 	fn run(&mut self) {
 		logger::init();
-		config_manager::read();
-		let mut last_t = 0.0;
-		let config = config_manager::CONFIG.try_lock().unwrap();
-		let buddy = make_buddy(
-			config.buddy_settings.buddy_type.as_str(),
-		);
-		drop(config);
+		let config = config::read();
+
+		let buddy = make_buddy(&config.buddy_settings.buddy_type);
 		self.add_context(make_buddy_context(buddy.clone()));
 		self.set_buddy(buddy);
+
+		let mut last_t = 0.0;
 		while !self.contexts.is_empty() {
 			self.contexts.retain_mut(|context| {
 				let mut context = context.borrow_mut();
 				// tracing::info!("new frame");
 				context.get_window().glfw.poll_events();
-				let dt = context.get_window().glfw.get_time()-last_t;
+				let dt = context.get_window().glfw.get_time() - last_t;
 				last_t = context.get_window().glfw.get_time();
 				let flushed_events = glfw::flush_messages(&context.get_window().events);
 				let mut should_close = false;
@@ -146,11 +141,11 @@ impl Funfriend {
 						WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
 							tracing::warn!("should close");
 							should_close = true;
-						},
+						}
 						WindowEvent::MouseButton(_, Action::Press, _) => {
 							tracing::warn!("was clicked");
 							was_clicked = true;
-						},
+						}
 						WindowEvent::MouseButton(_, Action::Release, _) => {
 							tracing::warn!("was released");
 							was_released = true;
@@ -187,7 +182,8 @@ impl Funfriend {
 				}
 			});
 		}
-		config_manager::write();
+
+		config::write();
 	}
 }
 
