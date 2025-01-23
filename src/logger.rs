@@ -12,8 +12,14 @@ struct CustomLogVisitor {
 pub fn init() {
 	tracing_subscriber::registry()
 		.with(CustomLogLayer)
+		.with(
+			tracing_subscriber::EnvFilter::builder()
+				.from_env()
+				.expect("invalid format in RUST_LOG env variable"),
+		)
 		.try_init()
 		.expect("failed to init logger");
+
 	tracing::info!("Logger initialized.");
 }
 
