@@ -1,7 +1,9 @@
+#![allow(dead_code)]
+
 use rand::Rng as _;
 use serde::{Deserialize, Serialize};
 use std::f32::consts::TAU;
-use std::ops::{Add, AddAssign, Deref, DerefMut, Div, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Vec2 {
@@ -57,7 +59,7 @@ impl Vec2 {
 	}
 
 	pub fn cross(self, other: Self) -> Self {
-		Vec2::new(
+		Self::new(
 			self.y * other.y - self.x * other.y,
 			self.x * other.x - self.y * other.y,
 		)
@@ -75,8 +77,8 @@ impl Vec2 {
 		self.x * self.x + self.y * self.y
 	}
 
-	pub fn angle_to(&self, other: Self) -> Vec2 {
-		self * other / (self.len() * other.len())
+	pub fn angle_to(&self, other: Self) -> Self {
+		*self * other / (self.len() * other.len())
 	}
 
 	pub fn normalize_mut(&mut self) {
@@ -89,7 +91,7 @@ impl Vec2 {
 		}
 	}
 
-	pub fn normalize(&self) -> Vec2 {
+	pub fn normalize(&self) -> Self {
 		let mut normalized = *self;
 		normalized.normalize_mut();
 		normalized
@@ -101,25 +103,25 @@ impl Vec2 {
 		self.y *= factor;
 	}
 
-	pub fn scale(&self, factor: f64) -> Vec2 {
+	pub fn scale(&self, factor: f64) -> Self {
 		let mut scaled = *self;
 		scaled.scale_mut(factor);
 		scaled
 	}
 
-	pub fn dist(&self, other: Vec2) -> f64 {
+	pub fn dist(&self, other: Self) -> f64 {
 		(*self - other).len()
 	}
 
-	pub fn square_dist(&self, other: Vec2) -> f64 {
+	pub fn square_dist(&self, other: Self) -> f64 {
 		(*self - other).square_len()
 	}
 
-	pub fn eq(&self, other: Vec2) -> bool {
+	pub fn eq(&self, other: Self) -> bool {
 		self.x == other.x && self.y == other.y
 	}
 
-	pub fn ne(&self, other: Vec2) -> bool {
+	pub fn ne(&self, other: Self) -> bool {
 		self.x != other.x || self.y != other.y
 	}
 
@@ -143,25 +145,25 @@ impl Vec2 {
 		Self::new(1.0, 1.0)
 	}
 
-	pub fn from_polar(angle: f64, length: f64) -> Vec2 {
+	pub fn from_polar(angle: f64, length: f64) -> Self {
 		Self {
 			x: angle.cos() * length,
 			y: angle.sin() * length,
 		}
 	}
 
-	pub fn rand(length: std::ops::Range<f64>) -> Vec2 {
+	pub fn rand(length: std::ops::Range<f64>) -> Self {
 		let mut rng = rand::thread_rng();
 		let angle = rng.gen_range(0.0..TAU) as f64;
 		let len = rng.gen_range(length);
-		Vec2::from_polar(angle, len)
+		Self::from_polar(angle, len)
 	}
 }
 
 // operators
 
 impl Add for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
 
 	fn add(self, other: Self) -> Self::Output {
 		Self::new(self.x + other.x, self.y + other.y)
@@ -169,7 +171,8 @@ impl Add for Vec2 {
 }
 
 impl Add<f64> for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
+
 	fn add(self, other: f64) -> Self::Output {
 		Self::new(self.x + other, self.y + other)
 	}
@@ -183,7 +186,7 @@ impl AddAssign for Vec2 {
 }
 
 impl Sub for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
 
 	fn sub(self, other: Self) -> Self::Output {
 		Self::new(self.x - other.x, self.y - other.y)
@@ -191,51 +194,48 @@ impl Sub for Vec2 {
 }
 
 impl Sub<f64> for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
+
 	fn sub(self, other: f64) -> Self::Output {
 		Self::new(self.x - other, self.y - other)
 	}
 }
 
 impl Neg for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
+
 	fn neg(self) -> Self::Output {
 		Self::new(-self.x, -self.y)
 	}
 }
 
 impl Mul for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
 
-	fn mul(self, other: Self) -> Self::Output {
-		Self::new(self.x * other.x, self.y * other.y)
-	}
-}
-
-impl Mul<Vec2> for &Vec2 {
-	type Output = Vec2;
-
-	fn mul(self, rhs: Vec2) -> Self::Output {
-		Vec2::new(self.x * rhs.x, self.y * rhs.y)
+	fn mul(self, rhs: Self) -> Self::Output {
+		Self::new(self.x * rhs.x, self.y * rhs.y)
 	}
 }
 
 impl Mul<f64> for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
+
 	fn mul(self, other: f64) -> Self::Output {
 		Self::new(self.x * other, self.y * other)
 	}
 }
 
 impl Div for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
+
 	fn div(self, other: Self) -> Self::Output {
 		Self::new(self.x / other.x, self.y / other.y)
 	}
 }
 
 impl Div<f64> for Vec2 {
-	type Output = Vec2;
+	type Output = Self;
+
 	fn div(self, other: f64) -> Self::Output {
 		Self::new(self.x / other, self.y / other)
 	}
@@ -243,10 +243,6 @@ impl Div<f64> for Vec2 {
 
 impl PartialEq for Vec2 {
 	fn eq(&self, other: &Self) -> bool {
-		if self.eq(*other) {
-			true
-		} else {
-			false
-		}
+		self.eq(*other)
 	}
 }
