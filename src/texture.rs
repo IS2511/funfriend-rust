@@ -1,7 +1,6 @@
 use gl::types::*;
 // use glium::Display;
 // use glium::texture::{Texture2d, RawImage2d, SrgbTexture2d};
-use image::{DynamicImage, GenericImage, GenericImageView};
 
 #[derive(Debug)]
 pub struct SizedTexture {
@@ -9,6 +8,7 @@ pub struct SizedTexture {
 	pub width: u32,
 	pub height: u32,
 }
+
 #[derive(Debug)]
 pub struct TextureBasket {
 	pub textures: Vec<SizedTexture>,

@@ -1,47 +1,51 @@
-use super::{super::config_manager, buddies::funfriend};
-use crate::texture::{SizedTexture, TextureBasket};
-use gl::types::*;
-use glfw::Context;
 use std::cell::RefCell;
 use std::ffi::CString;
-use std::io::Read;
 use std::rc::Rc;
-use std::sync::Mutex;
+
+use gl::types::*;
+use glfw::Context;
+
+use super::{
+	super::{
+		config,
+		texture::{SizedTexture, TextureBasket},
+		Window,
+	},
+	Buddy,
+};
 
 pub struct BuddyRenderer {
 	pub buddy_shader: GLuint,
 	pub bg_shader: GLuint,
 	pub vertex_array: GLuint,
 	pub vertex_buffer: GLuint,
-	pub textures: TextureBasket,
-	pub bg_texture: Option<SizedTexture>,
+	pub body: TextureBasket,
+	pub background: Option<SizedTexture>,
 }
 
 impl BuddyRenderer {
-	pub fn new(
-		buddy: Rc<RefCell<dyn funfriend::Buddy>>,
-		window: &mut super::super::Window,
-	) -> Self {
-		let mut buddy = buddy.borrow_mut();
+	pub fn new(buddy: Rc<RefCell<dyn Buddy>>, window: &mut Window) -> Self {
+		let buddy = buddy.borrow();
+
 		window.window_handle.make_current();
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
 		let (buddy_shader, bg_shader) = Self::init_shaders();
 		let (vertex_array, vertex_buffer) = Self::init_buffers();
-		let textures = buddy.textures();
-		let bg_texture = buddy.bg_texture();
+		let body = buddy.body();
+		let background = buddy.background();
 
 		Self {
 			buddy_shader,
 			bg_shader,
 			vertex_array,
 			vertex_buffer,
-			textures,
-			bg_texture,
+			body,
+			background,
 		}
 	}
 
 	pub fn funfriend_size(&self) -> (i32, i32) {
-		let config = config_manager::CONFIG.lock().unwrap();
+		let config = config::CONFIG.lock().unwrap();
 		if config.window_settings.size != super::super::vec2::Vec2::zero() {
 			(
 				config.window_settings.size.x as i32,
@@ -122,15 +126,21 @@ impl BuddyRenderer {
 	}
 
 	//noinspection RsCStringPointer
-	pub fn render(&mut self, dt: f64, window_width: i32, window_height: i32, window: &super::super::Window) {
+	pub fn render(
+		&mut self,
+		dt: f64,
+		window_width: i32,
+		window_height: i32,
+		window: &super::super::Window,
+	) {
 		unsafe {
 			gl::ClearColor(0.0, 0.0, 0.0, 0.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);
-			gl::Viewport(0,0,window_width,window_height);
+			gl::Viewport(0, 0, window_width, window_height);
 		}
 
-		self.textures.update(dt);
-		let frame = self.textures.texture();
+		self.body.update(dt);
+		let frame = self.body.texture();
 
 		let (width, height) = (frame.width, frame.height);
 
@@ -138,10 +148,10 @@ impl BuddyRenderer {
 			gl::Enable(gl::BLEND);
 			gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 
-			if let Some(bg_texture) = &self.bg_texture {
+			if let Some(bg_texture) = &self.background {
 				gl::BindTexture(gl::TEXTURE_2D, bg_texture.tex);
 				gl::UseProgram(self.bg_shader);
-				
+
 				gl::Uniform1i(
 					gl::GetUniformLocation(
 						self.bg_shader,

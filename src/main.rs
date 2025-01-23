@@ -13,8 +13,8 @@ mod texture;
 mod vec2;
 mod window;
 
-use buddy::buddies::funfriend::{make_buddy, make_buddy_context, Buddy};
 use buddy::context::FFContext;
+use buddy::Buddy;
 use vec2::Vec2;
 use window::Window;
 
@@ -27,14 +27,14 @@ pub const NOP_VERT: &[u8] = include_bytes!("glsl/nop.vert");
 pub const BASIC_FRAG: &[u8] = include_bytes!("glsl/basic_fragment.frag");
 pub const BASIC_VERT: &[u8] = include_bytes!("glsl/basic_vertex.vert");
 
-pub struct Funfriend {
+pub struct App {
 	version: &'static str,
 	contexts: Vec<Rc<RefCell<dyn FFContext>>>,
 	buddy: Option<Rc<RefCell<dyn Buddy>>>,
 	window: Option<Rc<RefCell<Window>>>,
 }
 
-impl Funfriend {
+impl App {
 	fn new() -> Self {
 		Self {
 			version: APP_VERSION,
@@ -120,8 +120,8 @@ impl Funfriend {
 		logger::init();
 		let config = config::read();
 
-		let buddy = make_buddy(&config.buddy_settings.buddy_type);
-		self.add_context(make_buddy_context(buddy.clone()));
+		let buddy = buddy::make_buddy(&config.buddy_settings.buddy_type);
+		self.add_context(buddy::make_context(buddy.clone()));
 		self.set_buddy(buddy);
 
 		let mut last_t = 0.0;
@@ -188,6 +188,6 @@ impl Funfriend {
 }
 
 fn main() {
-	let mut app = Funfriend::new();
+	let mut app = App::new();
 	app.run();
 }

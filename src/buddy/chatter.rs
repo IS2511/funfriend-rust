@@ -39,8 +39,11 @@ impl ChatterContext {
 			"!!__FUNFRIEND__!! > CHATTER",
 		);
 
-		window.window_handle.set_pos((position.x - window_size.x / 2.0) as i32, (position.y - window_size.y / 2.0) as i32);
-		
+		window.window_handle.set_pos(
+			(position.x - window_size.x / 2.0) as i32,
+			(position.y - window_size.y / 2.0) as i32,
+		);
+
 		let renderer = TextRenderer::new(
 			text.to_string(),
 			font.to_string(),
@@ -58,12 +61,12 @@ impl ChatterContext {
 
 		window.window_handle.make_current();
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
-		
+
 		unsafe {
 			gl::Enable(gl::BLEND);
 			gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 		}
-		
+
 		Self {
 			renderer,
 			parent,
