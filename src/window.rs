@@ -1,5 +1,16 @@
 use glfw::fail_on_errors;
 
+use super::vec2::Vec2;
+
+pub trait Windowed {
+	fn get_window(&mut self) -> &mut Window;
+	fn update(&mut self, dt: f64);
+	fn should_close(&self) -> bool;
+	fn clean_up(&mut self);
+	fn on_click(&mut self, position: Vec2) {}
+	fn on_release(&mut self, position: Vec2) {}
+}
+
 pub struct Window {
 	pub(crate) glfw: glfw::Glfw,
 	pub(crate) handle: glfw::PWindow,

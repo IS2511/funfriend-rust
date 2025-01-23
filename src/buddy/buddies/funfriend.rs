@@ -1,7 +1,7 @@
 use super::{
 	super::{
 		super::texture::{load_texture, TextureBasket},
-		Buddy, DialogKind,
+		BuddyDefinition, DialogKind,
 	},
 	QuickDialogInstantiation as _,
 };
@@ -39,7 +39,7 @@ mod dialog {
 #[derive(Clone)]
 pub struct Funfriend;
 
-impl Buddy for Funfriend {
+impl BuddyDefinition for Funfriend {
 	fn name(&self) -> &str {
 		"FUNFRIEND"
 	}

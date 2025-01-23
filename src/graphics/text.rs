@@ -1,19 +1,21 @@
 use super::super::{
-	font_manager::FontMan, text_renderer::TextRenderer, vec2::Vec2, window::Window,
+	font_manager::FontMan,
+	text_renderer::TextRenderer,
+	vec2::Vec2,
+	window::{Window, Windowed},
 };
-use crate::buddy::context::FFContext;
 use glfw::Context as _;
 
-pub struct ChatterContext {
+pub struct Text {
 	renderer: TextRenderer,
-	parent: Option<Box<ChatterContext>>,
+	parent: Option<Box<Text>>,
 	parent_relative_pos: Vec2,
 	window_size: Vec2,
 	timer: f64,
 	window: Window,
 }
 
-impl ChatterContext {
+impl Text {
 	pub const DEFAULT_DURATION: f64 = 6.0;
 	const PADDING: f64 = 10.0;
 
@@ -22,7 +24,7 @@ impl ChatterContext {
 		font: &str,
 		position: Vec2,
 		duration: f64,
-		parent: Option<Box<ChatterContext>>,
+		parent: Option<Box<Text>>,
 	) -> Self {
 		let sheet = FontMan::parse_bm(&std::fs::read_to_string(format!("{}.fnt", font)).unwrap());
 
@@ -106,7 +108,7 @@ impl ChatterContext {
 	}
 }
 
-impl FFContext for ChatterContext {
+impl Windowed for Text {
 	fn update(&mut self, dt: f64) {
 		tracing::info!("text timer: {}", self.timer);
 		self.timer -= dt;
@@ -116,6 +118,7 @@ impl FFContext for ChatterContext {
 		self.update_pos();
 		self.render(dt);
 	}
+
 	fn clean_up(&mut self) {
 		self.renderer.clean_up();
 	}

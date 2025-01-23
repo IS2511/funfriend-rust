@@ -11,9 +11,9 @@ use super::{
 		buddy::{self, DialogKind},
 		config, ease,
 		vec2::Vec2,
-		window::Window,
+		window::{Window, Windowed},
 	},
-	Buddy,
+	BuddyDefinition,
 };
 
 const CHATTER_TIMER: f64 = 3.0;
@@ -21,18 +21,9 @@ const STAY_STILL_AFTER_HELD: f64 = 1.0;
 const WANDER_TIMER: f64 = 4.0;
 const FOLLOW_DIST: i32 = 120;
 
-pub trait FFContext {
-	fn should_close(&self) -> bool;
-	fn clean_up(&mut self);
-	fn update(&mut self, dt: f64);
-	fn get_window(&mut self) -> &mut Window;
-	fn on_click(&mut self, position: Vec2) {}
-	fn on_release(&mut self, position: Vec2) {}
-}
-
 pub struct Context {
-	pub buddy: Rc<RefCell<dyn Buddy>>,
-	pub owned_contexts: Vec<Rc<RefCell<dyn FFContext>>>,
+	pub buddy: Rc<RefCell<dyn BuddyDefinition>>,
+	pub owned_contexts: Vec<Rc<RefCell<dyn Windowed>>>,
 	pub renderer: buddy::Renderer,
 	pub chatter_timer: f64,
 	pub chatter_index: i32,
@@ -56,7 +47,7 @@ pub struct Context {
 }
 
 impl Context {
-	pub fn new(config: &config::Config, buddy: Rc<RefCell<dyn Buddy>>) -> Self {
+	pub fn new(config: &config::Config, buddy: Rc<RefCell<dyn BuddyDefinition>>) -> Self {
 		let name = format!("!!__{}__!!", buddy.borrow().name());
 
 		let mut window = Window::new(512, 512, name.as_str());
@@ -442,7 +433,7 @@ impl Context {
 	}
 }
 
-impl FFContext for Context {
+impl Windowed for Context {
 	fn should_close(&self) -> bool {
 		self.window.handle.should_close()
 	}

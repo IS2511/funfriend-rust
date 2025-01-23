@@ -12,7 +12,7 @@ use super::{
 		vec2::Vec2,
 		Window,
 	},
-	Buddy,
+	BuddyDefinition,
 };
 
 pub struct Renderer {
@@ -28,7 +28,7 @@ pub struct Renderer {
 impl Renderer {
 	pub fn new(
 		config: &config::Config,
-		buddy: Rc<RefCell<dyn Buddy>>,
+		buddy: Rc<RefCell<dyn BuddyDefinition>>,
 		window: &mut Window,
 	) -> Self {
 		let buddy = buddy.borrow();

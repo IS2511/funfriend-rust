@@ -7,16 +7,16 @@ mod config;
 mod ease;
 mod font_manager;
 mod glfn;
+mod graphics;
 mod logger;
 mod text_renderer;
 mod texture;
 mod vec2;
 mod window;
 
-use buddy::context::FFContext;
-use buddy::Buddy;
+use buddy::BuddyDefinition;
 use vec2::Vec2;
-use window::Window;
+use window::{Window, Windowed};
 
 pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,32 +28,20 @@ pub const BASIC_FRAG: &[u8] = include_bytes!("glsl/basic_fragment.frag");
 pub const BASIC_VERT: &[u8] = include_bytes!("glsl/basic_vertex.vert");
 
 pub struct App {
-	version: &'static str,
-	contexts: Vec<Rc<RefCell<dyn FFContext>>>,
-	buddy: Option<Rc<RefCell<dyn Buddy>>>,
-	window: Option<Rc<RefCell<Window>>>,
+	contexts: Vec<Rc<RefCell<dyn Windowed>>>,
+	buddy: Rc<RefCell<dyn BuddyDefinition>>,
+	config: config::Config,
 }
 
 impl App {
-	fn new() -> Self {
+	fn new(config: config::Config) -> Self {
+		let buddy = buddy::make_buddy(config.buddy.r#type);
+
 		Self {
-			version: APP_VERSION,
-			contexts: Vec::new(),
-			buddy: None,
-			window: None,
+			contexts: vec![buddy::make_context(&config, buddy.clone())],
+			buddy,
+			config,
 		}
-	}
-
-	fn set_buddy(&mut self, buddy: Rc<RefCell<dyn Buddy>>) {
-		self.buddy = Some(buddy);
-	}
-
-	fn add_context(&mut self, context: Rc<RefCell<dyn FFContext>>) {
-		self.contexts.push(context);
-	}
-
-	fn contexts(&self) -> &Vec<Rc<RefCell<dyn FFContext>>> {
-		&self.contexts
 	}
 
 	// fn run(&mut self) {
@@ -117,12 +105,7 @@ impl App {
 	// }
 
 	fn run(&mut self) {
-		logger::init();
 		let config = config::read();
-
-		let buddy = buddy::make_buddy(config.buddy.r#type);
-		self.add_context(buddy::make_context(&config, buddy.clone()));
-		self.set_buddy(buddy);
 
 		let mut last_t = 0.0;
 		while !self.contexts.is_empty() {
@@ -154,19 +137,19 @@ impl App {
 					}
 				}
 				if was_clicked {
-					let cursor_pos = context.get_window().window_handle.get_cursor_pos();
+					let cursor_pos = context.get_window().handle.get_cursor_pos();
 					let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 
 					context.on_click(cursor_pos);
 				}
 				if was_released {
-					let cursor_pos = context.get_window().window_handle.get_cursor_pos();
+					let cursor_pos = context.get_window().handle.get_cursor_pos();
 					let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 
 					context.on_release(cursor_pos);
 				}
 				if should_close {
-					context.get_window().window_handle.set_should_close(true);
+					context.get_window().handle.set_should_close(true);
 				}
 				if context.should_close() {
 					tracing::info!("trying to close?");
@@ -176,7 +159,7 @@ impl App {
 					// tracing::info!("running update");
 					context.update(dt);
 					let window = context.get_window();
-					window.window_handle.swap_buffers();
+					window.handle.swap_buffers();
 					window.glfw.wait_events_timeout(1.0 / 120.0);
 					true
 				}
@@ -188,6 +171,10 @@ impl App {
 }
 
 fn main() {
-	let mut app = App::new();
+	logger::init();
+
+	let config = config::read();
+
+	let mut app = App::new(config);
 	app.run();
 }
