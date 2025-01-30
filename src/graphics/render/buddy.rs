@@ -5,17 +5,15 @@ use std::rc::Rc;
 use gl::types::*;
 use glfw::Context;
 
-use super::{
-	super::{
-		config,
-		texture::{SizedTexture, TextureBasket},
-		vec2::Vec2,
-		Window,
-	},
-	BuddyDefinition,
+use super::super::super::{
+	buddy::BuddyDefinition,
+	config, glfn,
+	texture::{SizedTexture, TextureBasket},
+	vec2::Vec2,
+	Window, FUNFRIEND_FRAG, NOP_FRAG, NOP_VERT,
 };
 
-pub struct Renderer {
+pub struct Buddy {
 	pub body_shader: GLuint,
 	pub bg_shader: GLuint,
 	pub vertex_array: GLuint,
@@ -25,7 +23,7 @@ pub struct Renderer {
 	pub resolution: Vec2,
 }
 
-impl Renderer {
+impl Buddy {
 	pub fn new(
 		config: &config::Config,
 		buddy: Rc<RefCell<dyn BuddyDefinition>>,
@@ -115,23 +113,17 @@ impl Renderer {
 	}
 
 	fn init_shaders() -> (GLuint, GLuint) {
-		let ff_frag = std::str::from_utf8(super::super::FUNFRIEND_FRAG).unwrap();
-		let nop_vert = std::str::from_utf8(super::super::NOP_VERT).unwrap();
-		let nop_frag = std::str::from_utf8(super::super::NOP_FRAG).unwrap();
-		let buddy_shader = super::super::glfn::shader(ff_frag, nop_vert);
-		let bg_shader = super::super::glfn::shader(nop_frag, nop_vert);
+		let ff_frag = std::str::from_utf8(FUNFRIEND_FRAG).unwrap();
+		let nop_vert = std::str::from_utf8(NOP_VERT).unwrap();
+		let nop_frag = std::str::from_utf8(NOP_FRAG).unwrap();
+		let buddy_shader = glfn::shader(ff_frag, nop_vert);
+		let bg_shader = glfn::shader(nop_frag, nop_vert);
 
 		(buddy_shader, bg_shader)
 	}
 
 	//noinspection RsCStringPointer
-	pub fn render(
-		&mut self,
-		dt: f64,
-		window_width: i32,
-		window_height: i32,
-		window: &super::super::Window,
-	) {
+	pub fn render(&mut self, dt: f64, window_width: i32, window_height: i32, window: &Window) {
 		unsafe {
 			gl::ClearColor(0.0, 0.0, 0.0, 0.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);

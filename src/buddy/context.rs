@@ -1,41 +1,30 @@
-use super::super::{
-	buddy::{
-		buddies::funfriend::{self, DialogType},
-		chatter::ChatterContext,
-		renderer::BuddyRenderer,
-	},
-	ease,
-	vec2::Vec2,
-	window::Window,
-};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use glfw::ffi::{GLFWmonitor, GLFWvidmode};
 use glfw::Context as _;
 use rand::prelude::SliceRandom;
-use std::cell::RefCell;
-use std::ops::{AddAssign, Deref, DerefMut};
-use std::rc::Rc;
-use std::sync::Mutex;
-use glfw::ffi::{GLFWmonitor, GLFWvidmode};
 use rand::Rng as _;
-use winit::raw_window_handle::HasWindowHandle;
+
+use super::{
+	super::{
+		buddy::{self, DialogKind},
+		config, ease,
+		vec2::Vec2,
+		window::{Window, Windowed},
+	},
+	BuddyDefinition,
+};
 
 const CHATTER_TIMER: f64 = 3.0;
 const STAY_STILL_AFTER_HELD: f64 = 1.0;
 const WANDER_TIMER: f64 = 4.0;
 const FOLLOW_DIST: i32 = 120;
 
-pub trait FFContext {
-	fn should_close(&self) -> bool;
-	fn clean_up(&mut self);
-	fn update(&mut self, dt: f64);
-	fn get_window(&mut self) -> &mut Window;
-	fn on_click(&mut self, position: Vec2) {}
-	fn on_release(&mut self, position: Vec2) {}
-}
-
-pub struct BuddyContext {
-	pub buddy: Rc<RefCell<dyn funfriend::Buddy>>,
-	pub owned_contexts: Vec<Rc<RefCell<dyn FFContext>>>,
-	pub renderer: BuddyRenderer,
+pub struct Context {
+	pub buddy: Rc<RefCell<dyn BuddyDefinition>>,
+	pub owned_contexts: Vec<Rc<RefCell<dyn Windowed>>>,
+	pub renderer: buddy::Renderer,
 	pub chatter_timer: f64,
 	pub chatter_index: i32,
 	pub chatter_array: Option<Vec<String>>,
@@ -52,34 +41,31 @@ pub struct BuddyContext {
 	pub wander_timer: f64,
 	pub window: Window,
 	pub dir_vec: Vec2,
-	pub configured_behavior: String,
+	pub configured_behavior: config::Behavior,
 	pub speed: f64,
 	pub internal_pos: Vec2,
 }
 
-impl BuddyContext {
-	pub fn new(buddy: Rc<RefCell<dyn funfriend::Buddy>>) -> Self {
-		let mut b_ref = buddy.borrow_mut();
-		let name = format!("!!__{}__!!", b_ref.name());
-		drop(b_ref);
+impl Context {
+	pub fn new(config: &config::Config, buddy: Rc<RefCell<dyn BuddyDefinition>>) -> Self {
+		let name = format!("!!__{}__!!", buddy.borrow().name());
+
 		let mut window = Window::new(512, 512, name.as_str());
 
-		let renderer = BuddyRenderer::new(buddy.clone(), &mut window);
+		let renderer = buddy::Renderer::new(config, buddy.clone(), &mut window);
 		let window_size = Self::get_window_size(&renderer);
 		tracing::info!("Window size: {:?}", window_size);
-		let mut b_ref = buddy.borrow_mut();
 
 		window
-			.window_handle
+			.handle
 			.set_size(window_size.x as i32, window_size.y as i32);
-		window.window_handle.make_current();
+		window.handle.make_current();
 		// window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 		gl::load_with(|s| window.glfw.get_proc_address_raw(s) as *const _);
-		let binding = b_ref.dialog(DialogType::Chatter);
-		let sample = binding.choose(&mut rand::thread_rng());
-		let chatter_array = Some(sample.unwrap().deref().to_owned());
-		drop(b_ref);
-		let config = super::super::config_manager::CONFIG.try_lock().unwrap();
+
+		let binding = buddy.borrow().dialog(DialogKind::Chatter);
+		let chatter_array = binding.choose(&mut rand::thread_rng()).cloned();
+
 		let mut result = Self {
 			buddy: buddy.clone(),
 			owned_contexts: Vec::new(),
@@ -99,23 +85,26 @@ impl BuddyContext {
 			easing_t: 0.0,
 			wander_timer: WANDER_TIMER,
 			window,
-			dir_vec: match config.buddy_settings.buddy_behavior.as_str(){
-				"dvd" => {
+			dir_vec: match config.buddy.behavior {
+				config::Behavior::Normal => Vec2::zero(),
+				config::Behavior::Dvd => {
 					let mut rng = rand::thread_rng();
 					let x = rng.gen_range(-1.0..1.0);
 					let y = rng.gen_range(-1.0..1.0);
 					Vec2::new(x, y).normalize()
-				},
-				"normal" | _ => Vec2::zero(),
+				}
 			},
-			configured_behavior: config.buddy_settings.buddy_behavior.clone(),
-			speed: config.buddy_settings.speed.clone(),
+			configured_behavior: config.buddy.behavior.clone(),
+			speed: config.buddy.speed.clone(),
 			internal_pos: Vec2::zero(),
 		};
 
 		let random_position = Self::random_pos_current_monitor(&result);
 		tracing::info!("random position: {:?}", random_position);
-		result.window.window_handle.set_pos(random_position.x as i32, random_position.y as i32);
+		result
+			.window
+			.handle
+			.set_pos(random_position.x as i32, random_position.y as i32);
 		result.internal_pos = random_position;
 		result.static_pos = random_position;
 		drop(config);
@@ -126,7 +115,7 @@ impl BuddyContext {
 	// 	let monitor = self.get_primary_monitor();
 	//
 	// }
-	fn get_window_size(renderer: &BuddyRenderer) -> Vec2 {
+	fn get_window_size(renderer: &buddy::Renderer) -> Vec2 {
 		let size = renderer.funfriend_size();
 		Vec2::new_i(
 			(size.0 as f64 * 1.3).floor() as i32,
@@ -154,49 +143,52 @@ impl BuddyContext {
 		let rand_y = y + (height as f64 * rand::random::<f64>()) as i32;
 		Vec2::new_i(rand_x, rand_y)
 	}
-	
+
 	fn random_pos_current_monitor(&self) -> Vec2 {
-		let (monitor, x, y, w, h, _mx, _my, _mw, _mh) = Self::get_current_monitor(self.window.window_handle.window_ptr());
+		let (monitor, x, y, w, h, _mx, _my, _mw, _mh) =
+			Self::get_current_monitor(self.window.handle.window_ptr());
 		let rand_x = x + (w as f64 * rand::random::<f64>()) as i32;
 		let rand_y = y + (h as f64 * rand::random::<f64>()) as i32;
 		Vec2::new_i(rand_x, rand_y)
 	}
-	
-	fn get_current_monitor(window: *mut glfw::ffi::GLFWwindow) -> (*mut GLFWmonitor, i32, i32, i32, i32, i32, i32, i32, i32) {
+
+	fn get_current_monitor(
+		window: *mut glfw::ffi::GLFWwindow,
+	) -> (*mut GLFWmonitor, i32, i32, i32, i32, i32, i32, i32, i32) {
 		let mut monitor_count: std::ffi::c_int = 0;
-		
+
 		let mut wx: std::ffi::c_int = 0;
 		let mut wy: std::ffi::c_int = 0;
 		let mut ww: std::ffi::c_int = 0;
 		let mut wh: std::ffi::c_int = 0;
-		
+
 		let mut mx: std::ffi::c_int = 0;
 		let mut my: std::ffi::c_int = 0;
 		let mut mw: std::ffi::c_int = 0;
 		let mut mh: std::ffi::c_int = 0;
 		let mut overlap: std::ffi::c_int;
 		let mut best_overlap: std::ffi::c_int;
-		
+
 		let mut mode: *const GLFWvidmode;
-		let mut best_monitor: (*mut GLFWmonitor, i32, i32, i32, i32, i32, i32, i32, i32) = (std::ptr::null_mut(), 0, 0, 0, 0, 0, 0, 0, 0);
+		let mut best_monitor: (*mut GLFWmonitor, i32, i32, i32, i32, i32, i32, i32, i32) =
+			(std::ptr::null_mut(), 0, 0, 0, 0, 0, 0, 0, 0);
 		let mut monitors: *mut *mut GLFWmonitor;
 		best_overlap = 0;
 		unsafe {
 			glfw::ffi::glfwGetWindowPos(window, &mut wx, &mut wy);
 			glfw::ffi::glfwGetWindowSize(window, &mut ww, &mut wh);
-			
+
 			monitors = glfw::ffi::glfwGetMonitors(&mut monitor_count);
-			
+
 			for i in 0..monitor_count {
 				let monitor = *monitors.add(i as usize);
 				mode = glfw::ffi::glfwGetVideoMode(monitor);
 				glfw::ffi::glfwGetMonitorPos(monitor, &mut mx, &mut my);
 				mw = mode.as_ref().unwrap().width;
 				mh = mode.as_ref().unwrap().height;
-				
-				overlap =
-					(0.max((wx+ww).min(mx+mw)-wx.max(mx))) * 
-						(0.max((wy+wh).min(my+mh) - wy.max(my)));
+
+				overlap = (0.max((wx + ww).min(mx + mw) - wx.max(mx)))
+					* (0.max((wy + wh).min(my + mh) - wy.max(my)));
 
 				if best_overlap < overlap {
 					best_overlap = overlap;
@@ -216,7 +208,7 @@ impl BuddyContext {
 	}
 
 	pub fn render(&mut self, dt: f64) {
-		self.window.window_handle.make_current();
+		self.window.handle.make_current();
 		gl::load_with(|s| self.window.glfw.get_proc_address_raw(s) as *const _);
 		let window_size = Self::get_window_size(&self.renderer);
 		self.renderer
@@ -227,8 +219,8 @@ impl BuddyContext {
 		self.easing_t = 0.0;
 		self.easing_dur = dur;
 		self.easing_from = Vec2::new(
-			self.window.window_handle.get_pos().0 as f64,
-			self.window.window_handle.get_pos().1 as f64,
+			self.window.handle.get_pos().0 as f64,
+			self.window.handle.get_pos().1 as f64,
 		);
 		self.easing_to = pos;
 
@@ -246,7 +238,7 @@ impl BuddyContext {
 			let a = ease::in_out_sine(self.easing_t / self.easing_dur);
 			let new_position = self.easing_from * (1.0 - a) + self.easing_to * a;
 			self.window
-				.window_handle
+				.handle
 				.set_pos(new_position.x as i32, new_position.y as i32);
 
 			self.wander_timer = WANDER_TIMER;
@@ -261,20 +253,20 @@ impl BuddyContext {
 				}
 				Behavior::Follow => {
 					if !self.moving() {
-						let cursor_pos = self.window.window_handle.get_cursor_pos();
-						let mut x_target = self.window.window_handle.get_pos().0 as f64;
-						let mut y_target = self.window.window_handle.get_pos().1 as f64;
+						let cursor_pos = self.window.handle.get_cursor_pos();
+						let mut x_target = self.window.handle.get_pos().0 as f64;
+						let mut y_target = self.window.handle.get_pos().1 as f64;
 
 						let x_dist = cursor_pos.0;
 						let y_dist = cursor_pos.1;
 
 						if x_dist.abs() > FOLLOW_DIST as f64 {
-							x_target = self.window.window_handle.get_pos().0 as f64 + x_dist
+							x_target = self.window.handle.get_pos().0 as f64 + x_dist
 								- FOLLOW_DIST as f64 * x_dist.signum();
 						}
 
 						if y_dist.abs() > FOLLOW_DIST as f64 {
-							y_target = self.window.window_handle.get_pos().1 as f64 + y_dist
+							y_target = self.window.handle.get_pos().1 as f64 + y_dist
 								- FOLLOW_DIST as f64 * y_dist.signum();
 						}
 
@@ -285,14 +277,14 @@ impl BuddyContext {
 			}
 		}
 	}
-	
+
 	pub fn update_pos(&mut self, dt: f64) {
-		let cursor_pos = self.window.window_handle.get_cursor_pos();
+		let cursor_pos = self.window.handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 		if self.held {
 			self.static_pos = self.static_pos - self.held_at + cursor_pos;
 			self.window
-				.window_handle
+				.handle
 				.set_pos(self.static_pos.x as i32, self.static_pos.y as i32);
 		} else {
 			self.held_timer -= dt;
@@ -307,13 +299,14 @@ impl BuddyContext {
 					let buddy = self.buddy.borrow();
 					if !self.speaking() {
 						if stable_pos_dist > 50.0 {
-							let dialog = buddy.dialog(DialogType::Moved);
+							let dialog = buddy.dialog(DialogKind::Moved);
 							drop(buddy);
-							self.say(dialog);
+							// TODO(is2511): Make `say()` work
+							// self.say(dialog);
 						} else {
-							let dialog = buddy.dialog(DialogType::Touched);
+							let dialog = buddy.dialog(DialogKind::Touched);
 							drop(buddy);
-							self.say(dialog);
+							// self.say(dialog);
 						}
 					}
 				}
@@ -328,31 +321,37 @@ impl BuddyContext {
 		// tracing::info!("init pos: {:?}", self.internal_pos);
 		// tracing::info!("dir: {:?}", self.dir_vec);
 
-		let cursor_pos = self.window.window_handle.get_cursor_pos();
+		let cursor_pos = self.window.handle.get_cursor_pos();
 		let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
-		
+
 		if self.held {
 			tracing::info!("cursor pos: {:?}", cursor_pos);
 			tracing::info!("held at: {:?}", self.held_at);
-			tracing::info!("should set to: {:?}", self.internal_pos - self.held_at + self.internal_pos);
+			tracing::info!(
+				"should set to: {:?}",
+				self.internal_pos - self.held_at + self.internal_pos
+			);
 			self.internal_pos = self.internal_pos - self.held_at + cursor_pos;
 			self.window
-				.window_handle
+				.handle
 				.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
-			return;	
+			return;
 		}
-		let (_,_,_,w,h,_,_,mw,mh) = Self::get_current_monitor(self.window.window_handle.window_ptr());
+		let (_, _, _, w, h, _, _, mw, mh) =
+			Self::get_current_monitor(self.window.handle.window_ptr());
 		// tracing::info!("w: {}, h: {}", w, h);
-		
+
 		self.internal_pos += self.dir_vec * self.speed * dt;
 		// tracing::info!("new pos: {:?}", self.internal_pos);
 		// tracing::info!("current window pos: {:?}", self.window.window_handle.get_pos());
-		self.window.window_handle.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
+		self.window
+			.handle
+			.set_pos(self.internal_pos.x as i32, self.internal_pos.y as i32);
 		// tracing::info!("new window pos: {:?}", self.window.window_handle.get_pos());
 		// tracing::info!("FRAME END");
 
 		// tracing::info!("internal pos: {:?}, w: {}, h: {}", self.internal_pos, w, h);
-		
+
 		if self.internal_pos.x <= 0.0 {
 			tracing::info!("hit left wall");
 			self.dir_vec.x = -self.dir_vec.x;
@@ -374,21 +373,21 @@ impl BuddyContext {
 			self.internal_pos.y = (mh - h) as f64;
 		}
 	}
-	
+
 	pub fn say(&mut self, text: String) {
 		// for context in Rc::get_mut(self.app_contexts.as_mut()).unwrap().into_iter().enumerate() {
 		// 	if context
 		// }
 	}
-	
+
 	// pub fn say(&mut self, text_groups: Vec<Vec<String>>) {
 	// 	let buddy = self.buddy.borrow();
 	// 	let flattened_texts: Vec<String> = text_groups.into_iter().flatten().collect();
 	// 	let window_size = Self::get_window_size(&self.renderer);
 	// 	let window_size = Vec2::new(window_size.x, window_size.y);
-	// 
+	//
 	// 	let mut last_context: Option<Box<ChatterContext>> = None;
-	// 
+	//
 	// 	let text_position = Vec2::new(
 	// 		self.window.window_handle.get_pos().0 as f64 + window_size.x / 2.0,
 	// 		self.window.window_handle.get_pos().1 as f64 - 20.0,
@@ -401,12 +400,12 @@ impl BuddyContext {
 	// 			ChatterContext::DEFAULT_DURATION,
 	// 			last_context.take(),
 	// 		);
-	// 
+	//
 	// 		last_context = Some(Box::new(chatter_context));
 	// 		buddy.talk_sound();
 	// 	}
 	// }
-	// 
+	//
 	// pub fn say_array(&mut self, text: Vec<String>) {
 	// 	self.chatter_array = Some(text);
 	// 	self.chatter_timer = 0.0;
@@ -434,9 +433,9 @@ impl BuddyContext {
 	}
 }
 
-impl FFContext for BuddyContext {
+impl Windowed for Context {
 	fn should_close(&self) -> bool {
-		self.window.window_handle.should_close()
+		self.window.handle.should_close()
 	}
 
 	fn clean_up(&mut self) {
@@ -446,11 +445,11 @@ impl FFContext for BuddyContext {
 	fn update(&mut self, dt: f64) {
 		// tracing::info!("current behavior: {:?}", self.behavior());
 		tracing::info!("expected behavior: {:?}", self.behavior());
-		match self.configured_behavior.as_str() {
-			"dvd" => {
+		match self.configured_behavior {
+			config::Behavior::Dvd => {
 				self.update_dvd(dt);
 			}
-			"normal" | _ => {
+			config::Behavior::Normal => {
 				self.chatter_timer -= dt;
 				if self.chatter_timer <= 0.0 {
 					tracing::info!("allowed to speak");
@@ -467,10 +466,10 @@ impl FFContext for BuddyContext {
 				self.update_pos(dt);
 			}
 		}
-		
+
 		self.render(dt);
 
-		self.window.window_handle.swap_buffers();
+		self.window.handle.swap_buffers();
 	}
 
 	fn get_window(&mut self) -> &mut Window {
@@ -481,16 +480,20 @@ impl FFContext for BuddyContext {
 		self.held = true;
 		self.held_at = position;
 		if self.held_timer <= 0.0 {
-			self.started_holding_at = Vec2::new_t(self.window.window_handle.get_pos());
+			self.started_holding_at = Vec2::new_t(self.window.handle.get_pos());
 		}
 		self.held_timer = STAY_STILL_AFTER_HELD;
 		self.easing_dur = 0.0;
-		self.window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
+		self.window
+			.handle
+			.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Hand)));
 	}
-	
+
 	fn on_release(&mut self, _: Vec2) {
 		self.held = false;
-		self.window.window_handle.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Arrow)));
+		self.window
+			.handle
+			.set_cursor(Some(glfw::Cursor::standard(glfw::StandardCursor::Arrow)));
 	}
 }
 

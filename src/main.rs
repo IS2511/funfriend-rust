@@ -1,25 +1,21 @@
 use glfw::{Action, Context, Key, WindowEvent};
 use std::cell::RefCell;
-use std::ops::Deref;
 use std::rc::Rc;
-use std::sync::Mutex;
 
 mod buddy;
-mod config_manager;
+mod config;
 mod ease;
 mod font_manager;
 mod glfn;
+mod graphics;
 mod logger;
-mod text_renderer;
 mod texture;
 mod vec2;
 mod window;
 
-use crate::buddy::buddies::funfriend::{make_buddy_context, Buddy};
-use crate::buddy::context::FFContext;
-use buddy::buddies::funfriend::make_buddy;
-use window::Window;
-use crate::vec2::Vec2;
+use buddy::BuddyDefinition;
+use vec2::Vec2;
+use window::{Window, Windowed};
 
 pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -30,33 +26,21 @@ pub const NOP_VERT: &[u8] = include_bytes!("glsl/nop.vert");
 pub const BASIC_FRAG: &[u8] = include_bytes!("glsl/basic_fragment.frag");
 pub const BASIC_VERT: &[u8] = include_bytes!("glsl/basic_vertex.vert");
 
-pub struct Funfriend {
-	version: &'static str,
-	contexts: Vec<Rc<RefCell<dyn FFContext>>>,
-	buddy: Option<Rc<RefCell<dyn Buddy>>>,
-	window: Option<Rc<RefCell<Window>>>,
+pub struct App {
+	contexts: Vec<Rc<RefCell<dyn Windowed>>>,
+	buddy: Rc<RefCell<dyn BuddyDefinition>>,
+	config: config::Config,
 }
 
-impl Funfriend {
-	fn new() -> Self {
+impl App {
+	fn new(config: config::Config) -> Self {
+		let buddy = buddy::make_buddy(config.buddy.r#type);
+
 		Self {
-			version: APP_VERSION,
-			contexts: Vec::new(),
-			buddy: None,
-			window: None,
+			contexts: vec![buddy::make_context(&config, buddy.clone())],
+			buddy,
+			config,
 		}
-	}
-
-	fn set_buddy(&mut self, buddy: Rc<RefCell<dyn Buddy>>) {
-		self.buddy = Some(buddy);
-	}
-
-	fn add_context(&mut self, context: Rc<RefCell<dyn FFContext>>) {
-		self.contexts.push(context);
-	}
-
-	fn contexts(&self) -> &Vec<Rc<RefCell<dyn FFContext>>> {
-		&self.contexts
 	}
 
 	// fn run(&mut self) {
@@ -118,24 +102,17 @@ impl Funfriend {
 	// 		}
 	// 	}
 	// }
-	
+
 	fn run(&mut self) {
-		logger::init();
-		config_manager::read();
+		let config = config::read();
+
 		let mut last_t = 0.0;
-		let config = config_manager::CONFIG.try_lock().unwrap();
-		let buddy = make_buddy(
-			config.buddy_settings.buddy_type.as_str(),
-		);
-		drop(config);
-		self.add_context(make_buddy_context(buddy.clone()));
-		self.set_buddy(buddy);
 		while !self.contexts.is_empty() {
 			self.contexts.retain_mut(|context| {
 				let mut context = context.borrow_mut();
 				// tracing::info!("new frame");
 				context.get_window().glfw.poll_events();
-				let dt = context.get_window().glfw.get_time()-last_t;
+				let dt = context.get_window().glfw.get_time() - last_t;
 				last_t = context.get_window().glfw.get_time();
 				let flushed_events = glfw::flush_messages(&context.get_window().events);
 				let mut should_close = false;
@@ -146,11 +123,11 @@ impl Funfriend {
 						WindowEvent::Key(Key::Escape, _, Action::Press, _) => {
 							tracing::warn!("should close");
 							should_close = true;
-						},
+						}
 						WindowEvent::MouseButton(_, Action::Press, _) => {
 							tracing::warn!("was clicked");
 							was_clicked = true;
-						},
+						}
 						WindowEvent::MouseButton(_, Action::Release, _) => {
 							tracing::warn!("was released");
 							was_released = true;
@@ -159,19 +136,19 @@ impl Funfriend {
 					}
 				}
 				if was_clicked {
-					let cursor_pos = context.get_window().window_handle.get_cursor_pos();
+					let cursor_pos = context.get_window().handle.get_cursor_pos();
 					let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 
 					context.on_click(cursor_pos);
 				}
 				if was_released {
-					let cursor_pos = context.get_window().window_handle.get_cursor_pos();
+					let cursor_pos = context.get_window().handle.get_cursor_pos();
 					let cursor_pos = Vec2::new(cursor_pos.0, cursor_pos.1);
 
 					context.on_release(cursor_pos);
 				}
 				if should_close {
-					context.get_window().window_handle.set_should_close(true);
+					context.get_window().handle.set_should_close(true);
 				}
 				if context.should_close() {
 					tracing::info!("trying to close?");
@@ -181,17 +158,22 @@ impl Funfriend {
 					// tracing::info!("running update");
 					context.update(dt);
 					let window = context.get_window();
-					window.window_handle.swap_buffers();
+					window.handle.swap_buffers();
 					window.glfw.wait_events_timeout(1.0 / 120.0);
 					true
 				}
 			});
 		}
-		config_manager::write();
+
+		config::write(&config);
 	}
 }
 
 fn main() {
-	let mut app = Funfriend::new();
+	logger::init();
+
+	let config = config::read();
+
+	let mut app = App::new(config);
 	app.run();
 }
